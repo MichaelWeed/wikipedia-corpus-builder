@@ -3,6 +3,7 @@ import os
 import shutil
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 import yaml
@@ -376,3 +377,153 @@ def test_engine_serve_subprocess_ai_domain_methods(tmp_path: Path) -> None:
 
     proc.stdin.close()
     proc.wait(timeout=5)
+
+
+def test_engine_serve_subprocess_build_start_is_async_and_pollable(tmp_path: Path) -> None:
+    """build.start used to block until the whole extraction finished, which
+    made build.cancel/job progress impossible (the stdin-dispatch loop was
+    busy the entire time). It must now return as soon as a job_id exists,
+    while build.status reports real progress until the build (run in a
+    background thread inside the server process) actually finishes."""
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{src_dir}:{env.get('PYTHONPATH', '')}"
+
+    proj_dir = tmp_path / "proj"
+    out_dir = tmp_path / "out"
+    domain_path = proj_dir / "domain.yaml"
+    proj_dir.mkdir(parents=True)
+    shutil.copy(EXAMPLE_DOMAIN, domain_path)
+    # Deliberately source from FIXWIKI_DIR directly (not project_dir/source)
+    # -- this is what a real desktop user does (SourceScreen lets you point
+    # at a dump anywhere on disk). run_build() only defaults to
+    # project_dir/source; metadata.build must persist the real path to
+    # project_dir/project.yaml for build.start to find it later.
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "corpussieve.cli.main", "engine", "serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+
+    def call(req_id: int, method: str, params: dict) -> dict:
+        req = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
+        proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
+        proc.stdin.flush()  # type: ignore[union-attr]
+        line = proc.stdout.readline()  # type: ignore[union-attr]
+        if not line:
+            stderr_text = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(f"Engine serve exited/crashed. Stderr:\n{stderr_text}")
+        resp = json.loads(line)
+        assert "error" not in resp or resp["error"] is None, resp.get("error")
+        return resp["result"]
+
+    call(1, "engine.hello", {})
+    call(2, "metadata.build", {"source": str(FIXWIKI_DIR), "project_dir": str(proj_dir)})
+    call(3, "domain.compile", {"domain": str(domain_path), "project_dir": str(proj_dir)})
+
+    t0 = time.monotonic()
+    start_res = call(
+        4,
+        "build.start",
+        {
+            "domain": str(proj_dir / "domain.lock.json"),
+            "project_dir": str(proj_dir),
+            "output": str(out_dir),
+            "allow_low_disk": True,
+        },
+    )
+    start_elapsed = time.monotonic() - t0
+    assert start_res["status"] == "started"
+    job_id = start_res["job_id"]
+    assert job_id
+    # This is the whole point of the change: the old synchronous build.start
+    # blocked for the full extraction; the response here must come back
+    # essentially immediately (generous bound to stay non-flaky in CI).
+    assert start_elapsed < 5.0
+
+    final_status = None
+    deadline = time.monotonic() + 15.0
+    req_id = 5
+    while time.monotonic() < deadline:
+        status_res = call(req_id, "build.status", {"job_id": job_id, "project_dir": str(proj_dir)})
+        req_id += 1
+        if status_res["status"] in ("succeeded", "failed", "cancelled"):
+            final_status = status_res
+            break
+        time.sleep(0.1)
+
+    assert final_status is not None, "build.status never reached a terminal state"
+    assert final_status["status"] == "succeeded"
+    assert final_status["report"]["validation"] == "PASSED"
+    assert final_status["report"]["extraction_count"] > 0
+
+    proc.stdin.close()
+    proc.wait(timeout=5)
+
+
+def test_build_cancel_unknown_job_errors() -> None:
+    """build.cancel on a job_id nothing is tracking must error clearly, not
+    silently no-op (the desktop Cancel button surfaces this as a log line)."""
+    from corpussieve.api.server import dispatch_method
+    from corpussieve.contracts.errors import CorpusSieveError
+
+    try:
+        dispatch_method("build.cancel", {"job_id": "does-not-exist"})
+        raise AssertionError("expected CorpusSieveError")
+    except CorpusSieveError as exc:
+        assert "does-not-exist" in exc.message
+
+
+def test_build_cancel_sets_the_registered_cancel_event() -> None:
+    """Exercises the exact server.py dispatch code path build.cancel runs,
+    without racing a real (possibly too-fast-to-catch) extraction: register
+    a fake in-flight build directly on the process-wide registry singleton
+    dispatch_method also reads from, then verify build.cancel flips its
+    cancel_event. This is the same mechanism run_build's own cancellation
+    (covered by tests/extraction/test_build.py) reacts to."""
+    import threading
+
+    from corpussieve.api.server import dispatch_method
+    from corpussieve.jobs.registry import get_build_registry
+
+    cancel_event = threading.Event()
+    job_id = "test-cancel-job-1"
+    get_build_registry().register(job_id, cancel_event)
+
+    result = dispatch_method("build.cancel", {"job_id": job_id})
+
+    assert result == {"job_id": job_id, "status": "cancel_requested"}
+    assert cancel_event.is_set()
+
+
+def test_build_status_falls_back_to_persisted_job_store(tmp_path: Path) -> None:
+    """A job started by a prior server process (e.g. before a desktop
+    restart) has no in-process registry entry — build.status must fall back
+    to the on-disk JobStore row instead of erroring."""
+    from corpussieve.api.server import dispatch_method
+    from corpussieve.contracts.enums import JobState
+    from corpussieve.jobs.state import JobStore
+
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir()
+    store = JobStore(proj_dir / "state.sqlite")
+    job_id = store.create_job("build")
+    store.transition(job_id, JobState.BUILDING)
+    store.close()
+
+    result = dispatch_method("build.status", {"job_id": job_id, "project_dir": str(proj_dir)})
+
+    assert result["job_id"] == job_id
+    assert result["status"] == str(JobState.BUILDING)
+    assert result["progress"] is None
+    # Opening a fresh JobStore against a job left in an active state (as
+    # this one deliberately is) triggers its own crash-recovery marking --
+    # see JobStore._apply_crash_recovery(). That's the realistic scenario
+    # this fallback path exists for: a build left active by a process that
+    # is no longer running.
+    assert result["interrupted"] is True

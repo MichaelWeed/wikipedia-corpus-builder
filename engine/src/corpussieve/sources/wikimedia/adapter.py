@@ -1,3 +1,4 @@
+import threading
 from collections.abc import Callable, Iterator
 from pathlib import Path
 from typing import Any
@@ -154,6 +155,7 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         _progress: Callable[[ProgressEvent], None] | None = None,
         job_store: Any = None,
         job_id: str | None = None,
+        cancel_event: threading.Event | None = None,
     ) -> Iterator[RawPage]:
         kind_to_path, _project, _lang, _dump_date = self._locate_files()
         ms_xml = kind_to_path.get("pages-articles-multistream.xml.bz2")
@@ -161,11 +163,18 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
 
         if ms_xml and ms_idx:
             yield from extract_multistream(
-                ms_xml, ms_idx, page_ids, job_store=job_store, job_id=job_id
+                ms_xml,
+                ms_idx,
+                page_ids,
+                job_store=job_store,
+                job_id=job_id,
+                cancel_event=cancel_event,
             )
         else:
             dump_file = ms_xml or kind_to_path["pages-articles.xml.bz2"]
-            yield from extract_sequential(dump_file, page_ids, job_store=job_store, job_id=job_id)
+            yield from extract_sequential(
+                dump_file, page_ids, job_store=job_store, job_id=job_id, cancel_event=cancel_event
+            )
 
     def source_metadata(self) -> dict[str, Any]:
         kind_to_path, project, lang, dump_date = self._locate_files()

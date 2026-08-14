@@ -5,6 +5,7 @@ import logging
 import os
 import shutil
 import threading
+from collections.abc import Callable
 from pathlib import Path
 
 import zstandard as zstd
@@ -12,6 +13,7 @@ import zstandard as zstd
 from corpussieve.contracts.corpus import CorpusContent, CorpusRecord, CorpusSource
 from corpussieve.contracts.enums import JobState
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
+from corpussieve.contracts.events import ProgressEvent
 from corpussieve.contracts.manifest import ManifestRecord
 from corpussieve.contracts.report import BuildReport
 from corpussieve.domain.definition import load_domain
@@ -31,15 +33,21 @@ logger = logging.getLogger(__name__)
 
 EST_BYTES_PER_ARTICLE = 3500
 
+# Publishing a ProgressEvent on every extracted page is negligible overhead
+# next to the XML parse/decompress work, but events are still throttled to
+# this cadence so pathologically large builds don't flood listeners.
+PROGRESS_EVERY_N_PAGES = 10
+
 
 def run_build(
     project_dir: Path | str,
     lock_path: Path | str,
     output_dir: Path | str,
-    _events: EventBus | None = None,
+    events: EventBus | None = None,
     cancel_event: threading.Event | None = None,
     allow_low_disk: bool = False,
     resume_job_id: str | None = None,
+    on_job_started: Callable[[str], None] | None = None,
 ) -> BuildReport:
     """Run end-to-end extraction build and atomic promoter."""
     p_dir = Path(project_dir).resolve()
@@ -94,6 +102,36 @@ def run_build(
     job_store = JobStore(state_db)
     job_id = resume_job_id or job_store.create_job("build", lock.lock_hash)
     job_store.transition(job_id, JobState.BUILDING)
+    if on_job_started:
+        on_job_started(job_id)
+
+    def _publish(stage: str, completed: int, message: str) -> None:
+        if events:
+            events.publish(
+                ProgressEvent(
+                    job_id=job_id,
+                    stage=stage,
+                    completed_units=completed,
+                    total_units=article_count,
+                    message=message,
+                )
+            )
+
+    _publish(str(JobState.BUILDING), 0, f"Starting extraction of {article_count:,} articles...")
+
+    def _raise_if_cancelled() -> None:
+        # extract_multistream/extract_sequential also check cancel_event
+        # themselves (between bz2 groups / pages) and stop yielding without
+        # raising, so the extraction loop below can end with zero further
+        # iterations instead of ever reaching its own in-loop check. This
+        # catches that case too — transitioning to CANCELLED is idempotent
+        # (CANCELLED->CANCELLED is a legal self-transition) whether or not
+        # the lower layer already made the transition.
+        if cancel_event and cancel_event.is_set():
+            job_store.transition(job_id, JobState.CANCELLED)
+            shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
+            _publish(str(JobState.CANCELLED), extracted_count, "Build cancelled by user.")
+            raise CorpusSieveError(ErrorCode.INTERNAL_ERROR, "Build cancelled by user")
 
     staging_dir = out_dir / f".staging-{job_id}"
     if not resume_job_id and staging_dir.exists():
@@ -121,21 +159,20 @@ def run_build(
         except Exception as exc:
             logger.warning("Failed to read project.yaml source_paths: %s", exc)
 
+    extracted_count = 0
     try:
         adapter = WikimediaXmlDumpAdapter(source_dir)
-        raw_pages = adapter.extract_selected_pages(selected_ids, job_store=job_store, job_id=job_id)
+        raw_pages = adapter.extract_selected_pages(
+            selected_ids, job_store=job_store, job_id=job_id, cancel_event=cancel_event
+        )
 
         cctx = zstd.ZstdCompressor(level=10)
         enriched_map: dict[int, ManifestRecord] = {}
-        extracted_count = 0
 
         open_mode = "ab" if (resume_job_id and c_zst_path.exists()) else "wb"
         with c_zst_path.open(open_mode) as f_corp_raw, cctx.stream_writer(f_corp_raw) as c_writer:
             for raw_page in raw_pages:
-                if cancel_event and cancel_event.is_set():
-                    job_store.transition(job_id, JobState.CANCELLED)
-                    shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
-                    raise CorpusSieveError(ErrorCode.INTERNAL_ERROR, "Build cancelled by user")
+                _raise_if_cancelled()
 
                 man_rec = manifest_by_id.get(raw_page.page_id)
                 if not man_rec:
@@ -177,7 +214,24 @@ def run_build(
                     content_hash=content_hash,
                 )
                 extracted_count += 1
+                if extracted_count % PROGRESS_EVERY_N_PAGES == 0:
+                    _publish(
+                        str(JobState.BUILDING),
+                        extracted_count,
+                        f"Extracted {extracted_count:,}/{article_count:,} articles...",
+                    )
 
+        # Catches cancellation that happened inside extract_multistream/
+        # extract_sequential's own group/page-boundary checks after the last
+        # page was yielded (they stop yielding silently rather than raising,
+        # so the loop above may see zero further iterations).
+        _raise_if_cancelled()
+
+        _publish(
+            str(JobState.BUILDING),
+            extracted_count,
+            f"Extracted {extracted_count:,}/{article_count:,} articles...",
+        )
         output_bytes = c_zst_path.stat().st_size if c_zst_path.exists() else 0
 
         # Write enriched manifest.jsonl.zst
@@ -201,6 +255,7 @@ def run_build(
 
         job_store.transition(job_id, JobState.BUILD_SUCCEEDED)
         job_store.transition(job_id, JobState.VALIDATING)
+        _publish(str(JobState.VALIDATING), extracted_count, "Validating corpus...")
 
         # Step 6: Validate corpus in staging
         val_res = validate_corpus(staging_dir, lock)
@@ -208,6 +263,7 @@ def run_build(
             job_store.transition(job_id, JobState.FAILED, error_code="VALIDATION_FAILED")
             shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
             msg = f"Corpus validation failed: {', '.join(val_res.errors)}"
+            _publish(str(JobState.FAILED), extracted_count, msg)
             raise CorpusSieveError(ErrorCode.VALIDATION_FAILED, msg)
 
         job_store.transition(job_id, JobState.VALIDATED)
@@ -223,18 +279,31 @@ def run_build(
             shutil.rmtree(final_corpus_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
 
         os.replace(staging_dir, final_corpus_dir)
+        _publish(
+            str(JobState.VALIDATED),
+            extracted_count,
+            f"Build complete. {extracted_count:,} articles validated.",
+        )
         return report
 
     except Exception as exc:
-        err_code = getattr(exc, "code", ErrorCode.INTERNAL_ERROR)
-        err_str = err_code.value if hasattr(err_code, "value") else str(err_code)
-        with contextlib.suppress(Exception):
-            job_store.transition(
-                job_id,
-                JobState.FAILED,
-                error_code=err_str,
-                error_message=str(exc),
-            )
+        already_cancelled = bool(cancel_event and cancel_event.is_set())
+        if not already_cancelled:
+            # The cancellation branch above already transitioned this job to
+            # CANCELLED and published a CANCELLED event before raising; don't
+            # clobber that with FAILED here (CANCELLED->FAILED is otherwise a
+            # legal transition, so this guard is required, not just tidy).
+            err_code = getattr(exc, "code", ErrorCode.INTERNAL_ERROR)
+            err_str = err_code.value if hasattr(err_code, "value") else str(err_code)
+            with contextlib.suppress(Exception):
+                job_store.transition(
+                    job_id,
+                    JobState.FAILED,
+                    error_code=err_str,
+                    error_message=str(exc),
+                )
+            with contextlib.suppress(Exception):
+                _publish(str(JobState.FAILED), extracted_count, str(exc))
         if staging_dir.exists():
             shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
         raise

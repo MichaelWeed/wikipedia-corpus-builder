@@ -76,4 +76,15 @@ describe("EngineClient", () => {
       page_title: "Some_Article",
     });
   });
+
+  it("passes correct arguments for getBuildStatus and cancelBuild", async () => {
+    const handler = vi.fn().mockResolvedValue({ status: "running" });
+    const client = new EngineClient(handler);
+
+    await client.getBuildStatus("job-123", "/proj");
+    expect(handler).toHaveBeenCalledWith("build.status", { job_id: "job-123", project_dir: "/proj" });
+
+    await client.cancelBuild("job-123");
+    expect(handler).toHaveBeenCalledWith("build.cancel", { job_id: "job-123" });
+  });
 });

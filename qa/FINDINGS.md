@@ -275,14 +275,14 @@ unimplemented server-side and are confirmed broken when called:**
 | `ModelScreen.tsx` | `model.detect`, `model.add`, `model.list`, `model.test` | **FIXED** (Verified by `test_engine_serve_subprocess_model_methods` in `tests/api/test_server.py`) |
 | `DomainScreen.tsx` AI Assist | `domain.proposeFacets`, `domain.boundaryQuestions`, `domain.applyAnswers` | **FIXED** (Verified by `test_engine_serve_subprocess_ai_domain_methods` in `tests/api/test_server.py`; `domain.resolveReviews` left unimplemented — no engine backend exists) |
 | `SourceScreen.tsx` | `source.inspect` UI display | **FIXED** (Updated `SourceScreen.tsx` to read real `SourceInspection` fields: `fingerprint.project`, `fingerprint.language`, `dump_kind`, `has_*` booleans) |
-| `BuildScreen.tsx` | `build.cancel`, `job.subscribe` | **Not implemented.** `serve_stdio()` is a single-threaded loop that blocks on `sys.stdin` during synchronous `build.start`. Background threading and `ProgressEvent` pipeline in `run_build()` remain out of scope for this pass. |
+| `BuildScreen.tsx` | `build.cancel`, `build.status` | **FIXED (2026-08-14).** `run_build()` now runs on a background thread (`api/server.py::_start_build_background`) so `serve_stdio()`'s stdin loop stays free to serve `build.cancel`/`build.status` while extraction is in flight; `build.status` polls real `ProgressEvent`s. `job.subscribe` (true server-push notifications) is still not implemented — the Rust sidecar bridge (`engine.rs`) already opportunistically forwards notification lines as `engine-event`, but only while it happens to be blocking on a read for some other call, so it can't be relied on as the primary channel without a dedicated always-reading task; polling was the lower-risk fix. See PROGRESS.md P6.6 and the commit for full detail, including a second bug this surfaced: `metadata.build` never persisted the source dump's location, so `build.start` failed for any project whose source wasn't manually placed at `project_dir/source` — now fixed by writing `project_dir/project.yaml`. |
 | *(none currently)* | `project.create`, `project.open`, `project.get` | Not implemented, but also not currently called by any screen — `ProjectScreen.tsx` only sets local wizard state. |
 
 **What does work end-to-end today** (verified by this session's protocol
 tests and manual runs): `source.inspect`, `metadata.build`,
 `model.detect`/`model.add`/`model.list`/`model.test`,
 `domain.create`/`domain.proposeFacets`/`domain.boundaryQuestions`/`domain.applyAnswers`/`domain.compile`/`domain.preview`/`domain.explain`,
-`build.start`, `corpus.validate`, `export.markdown`/`export.jsonl`,
+`build.start`/`build.status`/`build.cancel`, `corpus.validate`, `export.markdown`/`export.jsonl`,
 `purge.plan`/`purge.confirm`. That covers the manual (no-LLM) path from
 "pick a source" through "export a corpus" — which is the path a first-time
 user following the CLI-equivalent flow would take.

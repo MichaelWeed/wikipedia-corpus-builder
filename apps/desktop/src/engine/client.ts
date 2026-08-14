@@ -178,6 +178,10 @@ export class EngineClient {
     });
   }
 
+  async getBuildStatus(jobId: string, projectDir: string) {
+    return this.call("build.status", { job_id: jobId, project_dir: projectDir });
+  }
+
   async cancelBuild(jobId: string) {
     return this.call("build.cancel", { job_id: jobId });
   }

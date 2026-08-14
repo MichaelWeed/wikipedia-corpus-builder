@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { useWizardStore } from "../store/wizardStore";
 import { EngineClient } from "../engine/client";
 import { UX_COPY } from "../copy";
@@ -13,27 +13,80 @@ export const BuildScreen: React.FC<BuildScreenProps> = ({ client }) => {
   const [building, setBuilding] = useState(false);
   const [outputDir, setOutputDir] = useState("");
   const [jobId, setJobId] = useState<string | null>(null);
+  const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
+
+  // build.start returns as soon as the build's job_id exists, not when the
+  // build finishes (see qa/FINDINGS.md #10) -- progress and completion are
+  // polled from build.status instead, so any in-flight poll must stop if
+  // the user navigates away mid-build.
+  useEffect(() => {
+    return () => {
+      if (pollRef.current) clearInterval(pollRef.current);
+    };
+  }, []);
+
+  const stopPolling = () => {
+    if (pollRef.current) {
+      clearInterval(pollRef.current);
+      pollRef.current = null;
+    }
+  };
 
   const handleStartBuild = async () => {
     if (!projectDir.trim() || !domainLockPath.trim()) return;
     const out = outputDir.trim() || `${projectDir}/output`;
     setBuilding(true);
-    setBuildProgress({ stage: "BUILDING", percent: 10, message: "Extracting articles from source dump..." });
+    setJobId(null);
+    setBuildProgress({ stage: "BUILDING", percent: 0, message: "Starting build..." });
     try {
       addLog(`Starting extraction build for project ${projectDir}...`);
       const res = await client.startBuild(domainLockPath, projectDir, out, true);
-      setBuildReport(res);
-      if (res && res.job_id) {
-        setJobId(res.job_id);
+      if (!res || !res.job_id) {
+        throw new Error("build.start did not return a job_id");
       }
-      setBuildProgress({ stage: "VALIDATED", percent: 100, message: "Build completed & validated successfully." });
-      addLog(`Build finished: ${JSON.stringify(res)}`);
-      setStep(7);
-    } catch (err: any) {
-      setBuildProgress({ stage: "FAILED", percent: 0, message: String(err) });
-      addLog(`Build failed: ${err}`);
-    } finally {
+      setJobId(res.job_id);
+      addLog(`Build started: job ${res.job_id}`);
+
+      let lastPercent = 0;
+      pollRef.current = setInterval(async () => {
+        try {
+          const status = await client.getBuildStatus(res.job_id, projectDir);
+          if (status.progress) {
+            const p = status.progress;
+            lastPercent = p.total_units
+              ? Math.round((p.completed_units / p.total_units) * 100)
+              : lastPercent;
+            setBuildProgress({ stage: p.stage, percent: lastPercent, message: p.message });
+          }
+
+          if (status.status === "succeeded") {
+            stopPolling();
+            setBuilding(false);
+            setBuildReport(status.report);
+            setBuildProgress({ stage: "VALIDATED", percent: 100, message: "Build completed & validated successfully." });
+            addLog(`Build finished: ${JSON.stringify(status.report)}`);
+            setStep(7);
+          } else if (status.status === "failed") {
+            stopPolling();
+            setBuilding(false);
+            setBuildProgress({ stage: "FAILED", percent: lastPercent, message: status.error || "Build failed." });
+            addLog(`Build failed: ${status.error}`);
+          } else if (status.status === "cancelled") {
+            stopPolling();
+            setBuilding(false);
+            setBuildProgress({ stage: "CANCELLED", percent: lastPercent, message: "Build cancelled by user." });
+            addLog("Build cancelled.");
+          }
+        } catch (err) {
+          stopPolling();
+          setBuilding(false);
+          addLog(`Build status check failed: ${err}`);
+        }
+      }, 1500);
+    } catch (err) {
       setBuilding(false);
+      setBuildProgress({ stage: "FAILED", percent: 0, message: String(err) });
+      addLog(`Build failed to start: ${err}`);
     }
   };
 
@@ -41,7 +94,7 @@ export const BuildScreen: React.FC<BuildScreenProps> = ({ client }) => {
     if (jobId) {
       try {
         await client.cancelBuild(jobId);
-        addLog("Build cancellation sent.");
+        addLog("Build cancellation requested.");
       } catch (err) {
         addLog(`Cancel error: ${err}`);
       }

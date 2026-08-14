@@ -1,6 +1,8 @@
+import contextlib
 import json
 import re
 import sys
+import threading
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
@@ -24,6 +26,9 @@ from corpussieve.domain.select import select_articles
 from corpussieve.exporters.jsonl import export_jsonl
 from corpussieve.exporters.markdown import export_markdown
 from corpussieve.extraction.build import run_build
+from corpussieve.jobs.events import EventBus
+from corpussieve.jobs.registry import get_build_registry
+from corpussieve.jobs.state import JobStore
 from corpussieve.metadata.build import build_metadata_index
 from corpussieve.metadata.queries import MetadataIndex
 from corpussieve.models.base import ModelProvider
@@ -92,6 +97,127 @@ def _send_notification(method: str, params: dict[str, Any]) -> None:
     sys.stdout.flush()
 
 
+# How long build.start will wait for the background thread to assign a
+# job_id before giving up. This only covers lock verification, traversal,
+# and disk preflight (near-instant in practice) — the extraction itself
+# runs after this point and is tracked separately via build.status polling.
+BUILD_START_TIMEOUT_S = 60.0
+
+
+def _start_build_background(
+    p_dir: Path,
+    lock_path: Path,
+    output_dir: Path,
+    allow_low_disk: bool,
+    resume_job_id: str | None,
+) -> dict[str, Any]:
+    """Run a build on a background thread so the stdin-dispatch loop stays
+    free to serve build.status/build.cancel while extraction is in flight.
+
+    Blocks only until run_build() has assigned a job_id (fast — lock
+    verification/traversal/disk preflight, not the extraction loop itself).
+    A failure in that fast setup phase is raised here, same as the old
+    fully-synchronous build.start; a failure during extraction is instead
+    recorded on the registry for build.status to report.
+    """
+    registry = get_build_registry()
+    cancel_event = threading.Event()
+    events_bus = EventBus()
+    job_id_box: dict[str, str] = {}
+    start_error_box: dict[str, Exception] = {}
+    started = threading.Event()
+
+    def _on_job_started(job_id: str) -> None:
+        job_id_box["job_id"] = job_id
+        registry.register(job_id, cancel_event)
+        started.set()
+
+    events_bus.subscribe(lambda evt: registry.update_progress(job_id_box.get("job_id", ""), evt))
+
+    def _run() -> None:
+        try:
+            report = run_build(
+                project_dir=p_dir,
+                lock_path=lock_path,
+                output_dir=output_dir,
+                events=events_bus,
+                cancel_event=cancel_event,
+                allow_low_disk=allow_low_disk,
+                resume_job_id=resume_job_id,
+                on_job_started=_on_job_started,
+            )
+            job_id = job_id_box.get("job_id")
+            if job_id:
+                registry.finish(job_id, report=report.model_dump(mode="json"))
+        except Exception as exc:
+            job_id = job_id_box.get("job_id")
+            if job_id:
+                registry.finish(job_id, error=str(exc), cancelled=cancel_event.is_set())
+            else:
+                # Failed before a job_id was ever assigned — surface it as a
+                # build.start error instead of making the caller wait out
+                # the full started.wait() timeout below.
+                start_error_box["exc"] = exc
+                started.set()
+
+    threading.Thread(target=_run, daemon=True, name="corpussieve-build").start()
+
+    if not started.wait(timeout=BUILD_START_TIMEOUT_S):
+        raise CorpusSieveError(
+            ErrorCode.INTERNAL_ERROR,
+            f"Build did not start within {BUILD_START_TIMEOUT_S:.0f}s "
+            "(lock verification/traversal may be taking unusually long).",
+        )
+
+    if "exc" in start_error_box:
+        exc = start_error_box["exc"]
+        if isinstance(exc, CorpusSieveError):
+            raise exc
+        raise CorpusSieveError(ErrorCode.INTERNAL_ERROR, f"Build failed to start: {exc}") from exc
+
+    return {"job_id": job_id_box["job_id"], "status": "started"}
+
+
+def _build_status(job_id: str, params: dict[str, Any]) -> dict[str, Any]:
+    """Return current status for job_id.
+
+    Reads live from the in-process registry if this server process started
+    the build; otherwise falls back to the persisted JobStore row (e.g. the
+    desktop app was restarted mid-build — the background thread is gone,
+    but the job's last known state and interrupted flag are still on disk).
+    """
+    entry = get_build_registry().get(job_id)
+    if entry:
+        with entry.lock:
+            return {
+                "job_id": job_id,
+                "status": entry.status,
+                "progress": (
+                    entry.latest_progress.model_dump(mode="json") if entry.latest_progress else None
+                ),
+                "error": entry.error,
+                "report": entry.report,
+            }
+
+    p_dir = Path(params.get("project_dir", "")).resolve()
+    state_db = p_dir / "state.sqlite"
+    if state_db.exists():
+        store = JobStore(state_db)
+        row = store.get_job(job_id)
+        store.close()
+        if row:
+            return {
+                "job_id": job_id,
+                "status": str(row["state"]),
+                "progress": None,
+                "error": row.get("error_message"),
+                "report": None,
+                "interrupted": bool(row["interrupted"]),
+            }
+
+    raise CorpusSieveError(ErrorCode.INTERNAL_ERROR, f"Unknown build job '{job_id}'")
+
+
 def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
     """Dispatch JSON-RPC method call to service layer."""
     if method == "engine.hello":
@@ -112,6 +238,25 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         adapter = WikimediaXmlDumpAdapter(source_path)
         db_path = p_dir / "cache" / "metadata.sqlite"
         build_metadata_index(adapter, db_path)
+
+        # Record where the source dump actually lives. The desktop wizard
+        # lets a user point at a dump anywhere on disk (it isn't copied into
+        # project_dir/source), so run_build() needs this to find it later --
+        # without it, build.start fails with "Source path .../source does
+        # not exist" for every project whose source isn't already sitting
+        # at that exact default path.
+        import yaml  # type: ignore[import-untyped]
+
+        proj_file_path = p_dir / "project.yaml"
+        proj_data: dict[str, Any] = {}
+        if proj_file_path.exists():
+            with contextlib.suppress(Exception):
+                loaded = yaml.safe_load(proj_file_path.read_text(encoding="utf-8"))
+                if isinstance(loaded, dict):
+                    proj_data = loaded
+        proj_data["source_paths"] = [str(Path(source_path).resolve())]
+        proj_file_path.write_text(yaml.safe_dump(proj_data, sort_keys=False), encoding="utf-8")
+
         return {"status": "success", "db_path": str(db_path)}
 
     elif method == "metadata.search":
@@ -373,22 +518,25 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         if resume:
             state_db = p_dir / "state.sqlite"
             if state_db.exists():
-                from corpussieve.jobs.state import JobStore
-
                 store = JobStore(state_db)
                 act = store.active_job("build")
                 store.close()
                 if act:
                     resume_job_id = str(act.get("job_id"))
 
-        report = run_build(
-            project_dir=p_dir,
-            lock_path=lock_path,
-            output_dir=output_dir,
-            allow_low_disk=allow_low_disk,
-            resume_job_id=resume_job_id,
-        )
-        return report.model_dump(mode="json")
+        return _start_build_background(p_dir, lock_path, output_dir, allow_low_disk, resume_job_id)
+
+    elif method == "build.status":
+        job_id = str(params.get("job_id") or "")
+        return _build_status(job_id, params)
+
+    elif method == "build.cancel":
+        job_id = str(params.get("job_id") or "")
+        if not get_build_registry().request_cancel(job_id):
+            raise CorpusSieveError(
+                ErrorCode.INTERNAL_ERROR, f"No active build job '{job_id}' to cancel"
+            )
+        return {"job_id": job_id, "status": "cancel_requested"}
 
     elif method == "corpus.validate":
         corpus_path = Path(params.get("corpus", "")).resolve()
