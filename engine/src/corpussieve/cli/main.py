@@ -1,6 +1,7 @@
 import typer
 
 from corpussieve import __version__
+from corpussieve.cli.domain_cmds import domain_app
 from corpussieve.cli.metadata_cmds import metadata_app
 from corpussieve.cli.source_cmds import source_app
 
@@ -12,7 +13,6 @@ app = typer.Typer(
 
 project_app = typer.Typer(help="Manage CorpusSieve projects")
 model_app = typer.Typer(help="Detect and test local AI providers")
-domain_app = typer.Typer(help="Create, compile, audit, and preview domain definitions")
 build_app = typer.Typer(help="Run and manage extraction builds")
 validate_app = typer.Typer(help="Validate canonical corpora")
 export_app = typer.Typer(help="Export corpora to Markdown or JSONL")
