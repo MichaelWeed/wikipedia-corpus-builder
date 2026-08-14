@@ -1,4 +1,4 @@
-from corpussieve.contracts.domain import DomainDefinition, DomainFacets
+from corpussieve.contracts.domain import DomainDefinition, DomainFacets, DomainRoot
 from corpussieve.contracts.intent import BoundaryQuestion
 from corpussieve.domain.intent import apply_answers
 
@@ -9,6 +9,7 @@ def test_apply_answers_folding() -> None:
         name="Test",
         language="en",
         description="d",
+        roots=[DomainRoot(query="Category:Test")],
         facets=DomainFacets(include=["video games"], exclude=["board games"]),
     )
 

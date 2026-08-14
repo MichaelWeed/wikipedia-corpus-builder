@@ -81,4 +81,4 @@ def test_llm_ambiguous_hook_cache(
 
     assert dec == BranchDecision.EXCLUDE
     # Ensure zero HTTP requests were made because cache hit
-    assert respx_mock.calls.count == 0
+    assert len(respx_mock.calls) == 0
