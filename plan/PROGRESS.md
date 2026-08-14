@@ -17,7 +17,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P1.3 — 2026-08-13 — Streaming SQL parser (page, categorylinks) & title normalization completed
 - [x] P1.4 — 2026-08-13 — Atomic SQLite metadata index builder completed
 - [x] P1.5 — 2026-08-13 — Metadata query API (child_categories, search, stats, decisions) completed
-- [ ] P1.6 CLI: `source inspect`, `metadata build`, `metadata search`
+- [x] P1.6 — 2026-08-13 — CLI commands source inspect, metadata build, metadata search completed
 
 ## P2 Deterministic domain compiler
 - [ ] P2.1 Domain definition load/validate + `domain create`
