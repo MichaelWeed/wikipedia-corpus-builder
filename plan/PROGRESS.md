@@ -20,7 +20,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P1.6 — 2026-08-13 — CLI commands source inspect, metadata build, metadata search completed
 
 ## P2 Deterministic domain compiler
-- [ ] P2.1 Domain definition load/validate + `domain create`
+- [x] P2.1 — 2026-08-13 — Domain definition load/validate & domain create CLI completed
 - [ ] P2.2 Root resolution against local categories
 - [ ] P2.3 Category graph traversal engine
 - [ ] P2.4 Article selection + manifest generation
