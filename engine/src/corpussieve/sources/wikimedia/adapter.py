@@ -1,13 +1,12 @@
 from collections.abc import Callable, Iterator
-from datetime import UTC, datetime
 from pathlib import Path
 from typing import Any
 
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
 from corpussieve.contracts.events import ProgressEvent
-from corpussieve.contracts.hashing import canonical_json_hash, compute_quick_hash
-from corpussieve.contracts.source import SourceFileInfo, SourceFingerprint, SourceInspection
+from corpussieve.contracts.source import SourceFingerprint, SourceInspection
 from corpussieve.sources.base import RawPage, SourceAdapter
+from corpussieve.sources.fingerprint import fingerprint_files
 from corpussieve.sources.wikimedia.naming import parse_dump_filename
 
 
@@ -119,43 +118,8 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         )
 
     def fingerprint(self) -> SourceFingerprint:
-        kind_to_path, project, lang, dump_date = self._locate_files()
-        file_infos: list[SourceFileInfo] = []
-
-        for kind in sorted(kind_to_path.keys()):
-            path = kind_to_path[kind]
-            stat = path.stat()
-            size = stat.st_size
-            mtime_iso = (
-                datetime.fromtimestamp(stat.st_mtime, tz=UTC).isoformat().replace("+00:00", "Z")
-            )
-            qhash = compute_quick_hash(path, size)
-            file_infos.append(
-                SourceFileInfo(
-                    name=path.name,
-                    path=str(path),
-                    size_bytes=size,
-                    mtime_iso=mtime_iso,
-                    quick_hash=qhash,
-                )
-            )
-
-        # Hashed representation excludes mtime so mtime changes don't invalidate fingerprint
-        hashable_files = [
-            {"name": f.name, "path": f.path, "size_bytes": f.size_bytes, "quick_hash": f.quick_hash}
-            for f in file_infos
-        ]
-        fp_digest = canonical_json_hash(hashable_files)
-
-        return SourceFingerprint(
-            project=project,
-            language=lang,
-            dump_date=dump_date,
-            files=file_infos,
-            fingerprint=fp_digest,
-            official_checksum_verified=False,
-            full_hash=None,
-        )
+        kind_to_path, _project, _lang, _dump_date = self._locate_files()
+        return fingerprint_files(list(kind_to_path.values()))
 
     def build_metadata_index(
         self,
