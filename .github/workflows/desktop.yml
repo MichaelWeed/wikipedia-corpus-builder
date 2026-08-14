@@ -1,0 +1,59 @@
+name: Desktop Application CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  desktop-tests:
+    name: Desktop Shell Matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Check for desktop package
+        id: check_desktop
+        run: |
+          if [ ! -f "apps/desktop/package.json" ]; then
+            echo "::notice ::apps/desktop/package.json does not exist yet (P6 scaffold pending). Skipping desktop build."
+            echo "EXISTS=false" >> $GITHUB_OUTPUT
+          else
+            echo "EXISTS=true" >> $GITHUB_OUTPUT
+          fi
+        shell: bash
+
+      - name: Install pnpm & Node
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'apps/desktop/pnpm-lock.yaml'
+
+      - name: Install Rust toolchain
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Desktop Lint & Test
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        run: |
+          pnpm -C apps/desktop install
+          pnpm -C apps/desktop lint
+          pnpm -C apps/desktop test
+
+      - name: Tauri Debug Build
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        run: pnpm -C apps/desktop tauri build --debug

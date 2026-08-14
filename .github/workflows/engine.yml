@@ -1,0 +1,58 @@
+name: Engine CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+
+jobs:
+  engine-tests:
+    name: Engine Test Matrix
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest, windows-latest]
+        python-version: ["3.12"]
+
+    defaults:
+      run:
+        working-directory: engine
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+
+      - name: Install dependencies
+        run: uv sync
+
+      - name: Ruff Check & Format
+        run: |
+          uv run ruff check .
+          uv run ruff format --check .
+
+      - name: Typecheck (mypy strict)
+        run: uv run mypy src
+
+      - name: Run Pytest with Coverage
+        run: uv run pytest --cov=corpussieve --cov-fail-under=70 -q
+
+      - name: Schema Regeneration Diff Check
+        run: |
+          uv run python scripts/export_schemas.py
+          git diff --exit-code ../schemas
+
+      - name: Fixture Regeneration Diff Check
+        run: |
+          uv run python tests/fixtures/generator.py
+          git diff --exit-code tests/fixtures/fixwiki

@@ -1,0 +1,41 @@
+name: Schemas Verification
+
+on:
+  pull_request:
+    paths:
+      - 'schemas/**'
+      - 'engine/src/corpussieve/contracts/**'
+
+jobs:
+  schema-checks:
+    name: Schema Regeneration & Compatibility Check
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+
+      - name: Install engine dependencies
+        run: cd engine && uv sync
+
+      - name: Schema Regeneration Diff Check
+        run: |
+          cd engine
+          uv run python scripts/export_schemas.py
+          git diff --exit-code ../schemas
+
+      - name: Schema Backwards Compatibility Check
+        run: |
+          mkdir -p /tmp/old_schemas
+          git show origin/main:schemas/ > /dev/null 2>&1 || true
+          git archive origin/main schemas/ | tar -x -C /tmp/old_schemas/ || true
+          cd engine
+          uv run python scripts/schema_compat.py /tmp/old_schemas/schemas ../schemas
