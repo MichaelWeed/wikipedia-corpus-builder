@@ -46,7 +46,17 @@ recovered 13,628 subcategory edges and 82,379 memberships from the real dump.
 `dumps/` is gitignored. Already present:
 
 - `dumps/simplewiki/` — complete 5-file set, ~470 MB, integrity-verified.
-- `dumps/enwiki/` — full English Wikipedia, ~31 GB, downloaded overnight.
+- `dumps/enwiki/` — full English Wikipedia 20260801, **31 GB, all 5 files
+  present and correctly dated**, gzip archives integrity-verified.
+  `source inspect` reads it in 0.21 s (criterion 3 proven at real scale).
+
+Note: `source inspect` does **not** yet report `linktarget.sql.gz` as a
+companion — it is not in the adapter's known-file list, though current dumps
+require it (FINDINGS #1). It is downloaded and present regardless.
+
+Running `metadata build` against `dumps/enwiki/` will take considerably longer
+than simplewiki and will hit the same blocker (zero edges). Fix FINDINGS #1
+first; there is nothing to learn from running it beforehand.
 
 Files are named `<proj>-<YYYYMMDD>-*`, **not** `-latest-`. CorpusSieve's parser
 requires a `YYYYMMDD` date, and a fixed date is required for source-fingerprint

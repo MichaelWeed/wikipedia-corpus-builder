@@ -6,7 +6,7 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 |---|---|---|---|---|
 | 1 | A novice can install and launch the desktop app without seeing a terminal window | Manual: `pnpm tauri build --debug` bundle, launched via `open` (macOS double-click path)[^1] | PASSED | 2026-08-14 |
 | 2 | An expert can complete the same core workflow from CLI | `tests/cli/` suite + manual simplewiki runbook | PASSED | 2026-08-13 |
-| 3 | An existing Wikimedia dump can be inspected without full decompression | `tests/sources/test_fingerprint.py` | PASSED | 2026-08-13 |
+| 3 | An existing Wikimedia dump can be inspected without full decompression | `tests/sources/test_fingerprint.py` + real 31 GB enwiki 20260801 inspected in 0.21 s | PASSED | 2026-08-14 |
 | 4 | A local Ollama or LM Studio server can be detected through API | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
 | 5 | Available and loaded/running models are visible to the user | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
 | 6 | "Keep things related to video games" can become a user-reviewed domain definition | `tests/domain/test_traverse.py` + `test_select.py` | PASSED | 2026-08-13 |
