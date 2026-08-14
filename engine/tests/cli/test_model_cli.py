@@ -1,5 +1,7 @@
 import json
+from pathlib import Path
 
+import pytest
 from typer.testing import CliRunner
 
 from corpussieve.cli.main import app
@@ -14,7 +16,8 @@ def test_cli_model_detect_json() -> None:
     assert isinstance(data, list)
 
 
-def test_cli_model_add_json() -> None:
+def test_cli_model_add_json(monkeypatch: pytest.MonkeyPatch, tmp_path: Path) -> None:
+    monkeypatch.setattr("corpussieve.models.config.get_config_dir", lambda: tmp_path)
     res = runner.invoke(
         app,
         [
