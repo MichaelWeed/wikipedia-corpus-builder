@@ -1,0 +1,359 @@
+{
+  "category_decisions": [
+    {
+      "category": "Video_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 0,
+      "reason": "Root category",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Action-adventure_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Matched include facet",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Action_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Matched include facet",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Adventure_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Matched include facet",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Root",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Nintendo_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Matched include facet",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Platform_games",
+      "confidence": 1.0,
+      "decision": "include",
+      "depth": 1,
+      "reason": "Matched include facet",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_1",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_10",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_11",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_12",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_13",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_14",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_15",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_16",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_17",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_18",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_19",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_2",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_20",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_21",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_22",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_23",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_24",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_25",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_26",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_27",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_28",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_29",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_3",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_30",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_4",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_5",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_6",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_7",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_8",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    },
+    {
+      "category": "Explode_Sub_9",
+      "confidence": 0.8,
+      "decision": "include",
+      "depth": 2,
+      "reason": "Balanced policy default",
+      "root": "Category:Video_games",
+      "source": "traversal"
+    }
+  ],
+  "compiled_at": "2026-08-14T06:07:09.493548Z",
+  "compiler_version": "0.1.0.dev0",
+  "domain_hash": "9b22fa05bca9c5f4468ae64a98eca2170937b2a9c363a8a182c800ee8fff8645",
+  "domain_id": "video-games",
+  "forced_include_pages": [
+    "Chess in video games"
+  ],
+  "hard_exclude_pages": [
+    "List of board games"
+  ],
+  "llm": null,
+  "lock_hash": "82501020c44b4e9d858fdb1fdad709a4b4ea5ea1e36bd74447aafd2e6dbfc8da",
+  "resolved_roots": [
+    {
+      "max_depth": 4,
+      "query": "Category:Video games",
+      "resolved_category": "Video_games"
+    }
+  ],
+  "schema_version": 1,
+  "source_fingerprint": "826f9cc72f3c4180a7aa6acd05a1591fd88126876b599ea1f70c01b368b8f977",
+  "warnings_acknowledged": []
+}
