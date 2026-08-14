@@ -60,10 +60,10 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P6.7 — 2026-08-13 — Desktop vitest component & protocol client test suite completed
 
 ## P7 Safe purge & release
-- [ ] P7.1 Purge preconditions + executor
-- [ ] P7.2 Purge UX (CLI + desktop confirmations)
-- [ ] P7.3 Destructive-safety test suite
-- [ ] P7.4 Release engineering + v0.1 acceptance run
+- [x] P7.1 — 2026-08-13 — Purge preconditions (7 design §16.2 gates) + execution engine completed
+- [x] P7.2 — 2026-08-13 — CLI corpussieve source purge + engine protocol purge RPCs completed
+- [x] P7.3 — 2026-08-13 — Destructive-safety invariant test suite completed
+- [x] P7.4 — 2026-08-13 — GitHub release workflow, RELEASING.md & v0.1 acceptance matrix completed
 
 ## Deviations
 (record any spec deviation here: chunk ID, what changed, why, smallest workaround)

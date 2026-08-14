@@ -2,7 +2,7 @@ import json
 import sys
 from dataclasses import asdict
 from pathlib import Path
-from typing import Any
+from typing import Any, Literal
 
 from corpussieve import __version__
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
@@ -14,6 +14,8 @@ from corpussieve.exporters.markdown import export_markdown
 from corpussieve.extraction.build import run_build
 from corpussieve.metadata.build import build_metadata_index
 from corpussieve.metadata.queries import MetadataIndex
+from corpussieve.safety.preconditions import check_purge_preconditions
+from corpussieve.safety.purge import execute_purge
 from corpussieve.sources.wikimedia.adapter import WikimediaXmlDumpAdapter
 from corpussieve.validation.validate import validate_corpus
 
@@ -120,6 +122,32 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         output_path = Path(params.get("output", "")).resolve()
         norm = bool(params.get("normalized", False))
         return export_jsonl(corpus_dir=corpus_path, output_dir=output_path, normalized=norm)
+
+    elif method == "purge.plan":
+        p_dir = Path(params.get("project_dir", "")).resolve()
+        plan, blockers = check_purge_preconditions(p_dir)
+        if blockers or not plan:
+            return {
+                "purge_eligible": False,
+                "blockers": [b.model_dump(mode="json") for b in blockers],
+            }
+        return {
+            "purge_eligible": True,
+            "plan": plan.model_dump(mode="json"),
+            "blockers": [],
+        }
+
+    elif method == "purge.confirm":
+        p_dir = Path(params.get("project_dir", "")).resolve()
+        mode_val = params.get("mode", "trash")
+        token = params.get("confirm_token", "")
+        plan, blockers = check_purge_preconditions(p_dir)
+        if blockers or not plan:
+            msgs = ", ".join(b.message for b in blockers)
+            raise CorpusSieveError(ErrorCode.PURGE_OUTPUT_UNVERIFIED, f"Purge blocked: {msgs}")
+        p_mode: Literal["trash", "permanent"] = "permanent" if mode_val == "permanent" else "trash"
+        res_purge = execute_purge(plan, mode=p_mode, confirm_token=token)
+        return res_purge.model_dump(mode="json")
 
     else:
         raise CorpusSieveError(
