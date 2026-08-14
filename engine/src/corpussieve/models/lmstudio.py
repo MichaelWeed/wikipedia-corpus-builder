@@ -12,6 +12,11 @@ from corpussieve.models.errors import classify_httpx_error
 
 LMSTUDIO_DEFAULT_URL = "http://127.0.0.1:1234"
 
+# Local structured-completion calls can involve cold model loads (tens of
+# seconds for large weights) in addition to generation time, so this needs
+# a much longer budget than a typical network request.
+REQUEST_TIMEOUT_S = 120.0
+
 
 class LMStudioProvider(ModelProvider):
     """Provider implementation for local LM Studio instance (http://127.0.0.1:1234)."""
@@ -147,13 +152,26 @@ class LMStudioProvider(ModelProvider):
             }
 
             try:
-                r = httpx.post(url, headers=self._get_headers(), json=payload, timeout=30.0)
+                r = httpx.post(
+                    url, headers=self._get_headers(), json=payload, timeout=REQUEST_TIMEOUT_S
+                )
                 r.raise_for_status()
                 res_json = r.json()
                 content_str = res_json.get("choices", [{}])[0].get("message", {}).get("content", "")
 
                 data = json.loads(content_str)
                 return schema.model_validate(data)
+
+            except httpx.TimeoutException as err:
+                # Retrying won't make a slow/loading model faster; fail fast
+                # instead of burning max_retries * REQUEST_TIMEOUT_S.
+                raise CorpusSieveError(
+                    ErrorCode.MODEL_SCHEMA_TEST_FAILED,
+                    f"LM Studio request to model '{model_id}' timed out after "
+                    f"{REQUEST_TIMEOUT_S:.0f}s. The model may still be loading, "
+                    "too slow for this machine, or overloaded.",
+                    detail={"model_id": model_id, "timeout_s": REQUEST_TIMEOUT_S},
+                ) from err
 
             except (json.JSONDecodeError, ValueError, Exception) as err:
                 last_error = str(err)

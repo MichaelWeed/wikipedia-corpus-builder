@@ -8,9 +8,19 @@ export interface ModelConfig {
   privacyAccepted: boolean;
 }
 
+export interface BoundaryQuestion {
+  id: string;
+  question: string;
+  recommended: "include" | "exclude";
+  facet_target: string;
+}
+
 export interface DomainDraft {
   intent: string;
-  facets: string[];
+  includeFacets: string[];
+  excludeFacets: string[];
+  facetRationale: string;
+  boundaryQuestions: BoundaryQuestion[];
   boundaryAnswers: Record<string, string>;
   rootCategories: string[];
   depth: number;
@@ -71,7 +81,10 @@ export const useWizardStore = create<WizardState>((set) => ({
   },
   domainDraft: {
     intent: "",
-    facets: [],
+    includeFacets: [],
+    excludeFacets: [],
+    facetRationale: "",
+    boundaryQuestions: [],
     boundaryAnswers: {},
     rootCategories: ["Video_games"],
     depth: 6,

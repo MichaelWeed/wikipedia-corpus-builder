@@ -1,6 +1,7 @@
 import json
 from typing import Literal
 
+import httpx
 import pytest
 import respx
 from pydantic import BaseModel
@@ -90,6 +91,35 @@ def test_ollama_auth_failed_error(respx_mock: respx.MockRouter) -> None:
     with pytest.raises(CorpusSieveError) as exc_info:
         provider.list_models()
     assert exc_info.value.code == ErrorCode.MODEL_AUTH_FAILED
+
+
+def test_ollama_complete_structured_timeout_fails_fast(
+    respx_mock: respx.MockRouter,
+) -> None:
+    """A slow/loading model should fail with one clear error, not burn every retry."""
+    call_count = 0
+
+    def _raise_timeout(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    respx_mock.post(f"{OLLAMA_DEFAULT_URL}/api/chat").mock(side_effect=_raise_timeout)
+
+    ep = ProviderEndpoint(provider="ollama", base_url=OLLAMA_DEFAULT_URL, is_loopback=True)
+    provider = OllamaProvider(ep)
+
+    with pytest.raises(CorpusSieveError) as exc_info:
+        provider.complete_structured(
+            model_id="llama3:latest",
+            schema=DummySchema,
+            system="System",
+            prompt="User",
+            max_retries=2,
+        )
+    assert exc_info.value.code == ErrorCode.MODEL_SCHEMA_TEST_FAILED
+    assert "timed out" in exc_info.value.message
+    assert call_count == 1
 
 
 def test_ollama_schema_failure_retry(respx_mock: respx.MockRouter) -> None:

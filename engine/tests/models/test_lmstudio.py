@@ -1,6 +1,7 @@
 import json
 from typing import Literal
 
+import httpx
 import pytest
 import respx
 from pydantic import BaseModel
@@ -68,6 +69,35 @@ def test_lmstudio_complete_structured_happy_path(
     )
     assert isinstance(res, DummySchema)
     assert res.decision == "include"
+
+
+def test_lmstudio_complete_structured_timeout_fails_fast(
+    respx_mock: respx.MockRouter,
+) -> None:
+    """A slow/loading model should fail with one clear error, not burn every retry."""
+    call_count = 0
+
+    def _raise_timeout(request: httpx.Request) -> httpx.Response:
+        nonlocal call_count
+        call_count += 1
+        raise httpx.ReadTimeout("timed out", request=request)
+
+    respx_mock.post(f"{LMSTUDIO_DEFAULT_URL}/v1/chat/completions").mock(side_effect=_raise_timeout)
+
+    ep = ProviderEndpoint(provider="lmstudio", base_url=LMSTUDIO_DEFAULT_URL, is_loopback=True)
+    provider = LMStudioProvider(ep)
+
+    with pytest.raises(CorpusSieveError) as exc_info:
+        provider.complete_structured(
+            model_id="meta-llama-3",
+            schema=DummySchema,
+            system="System",
+            prompt="User",
+            max_retries=2,
+        )
+    assert exc_info.value.code == ErrorCode.MODEL_SCHEMA_TEST_FAILED
+    assert "timed out" in exc_info.value.message
+    assert call_count == 1
 
 
 def test_lmstudio_auth_failed(respx_mock: respx.MockRouter) -> None:

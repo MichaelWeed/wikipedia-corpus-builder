@@ -299,6 +299,7 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         raw_roots = params.get("roots") or [name]
         max_depth = int(params.get("max_depth", 6))
         include_facets = [str(f) for f in (params.get("facets") or [])]
+        exclude_facets = [str(f) for f in (params.get("exclude_facets") or [])]
 
         slug = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
         slug = re.sub(r"-+", "-", slug) or "domain"
@@ -323,7 +324,7 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
             description=intent or f"Domain definition for {name}",
             language=language,
             policy=DomainPolicy(),
-            facets=DomainFacets(include=include_facets),
+            facets=DomainFacets(include=include_facets, exclude=exclude_facets),
             roots=roots,
         )
         domain_path = p_dir / "domain.yaml"

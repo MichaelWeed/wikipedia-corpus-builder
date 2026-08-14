@@ -8,7 +8,18 @@ interface DomainScreenProps {
 }
 
 export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
-  const { domainDraft, projectDir, projectName, modelConfig, setDomainDraft, setDomainPath, setDomainLockPath, setStep, addLog } = useWizardStore();
+  const {
+    domainDraft,
+    projectDir,
+    projectName,
+    domainPath,
+    modelConfig,
+    setDomainDraft,
+    setDomainPath,
+    setDomainLockPath,
+    setStep,
+    addLog,
+  } = useWizardStore();
   const [loading, setLoading] = useState(false);
 
   const handleProposeFacets = async () => {
@@ -17,12 +28,81 @@ export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
     try {
       addLog(`Proposing facets for intent "${domainDraft.intent}"...`);
       const res = await client.proposeFacets(domainDraft.intent, modelConfig.provider || undefined);
-      if (res && res.facets) {
-        setDomainDraft({ facets: res.facets });
+      if (res && (res.include_facets || res.exclude_facets)) {
+        setDomainDraft({
+          includeFacets: res.include_facets || [],
+          excludeFacets: res.exclude_facets || [],
+          facetRationale: res.rationale || "",
+          boundaryQuestions: [],
+        });
       }
       addLog(`Propose facets result: ${JSON.stringify(res)}`);
     } catch (err) {
       addLog(`Propose facets failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleGetBoundaryQuestions = async () => {
+    if (!projectDir.trim() || !domainDraft.intent.trim()) return;
+    setLoading(true);
+    try {
+      // domain.boundaryQuestions/applyAnswers operate against a project's
+      // domain.yaml on disk, so make sure a draft exists before asking for
+      // (or later applying) boundary questions.
+      addLog(`Writing draft domain definition for "${projectName}"...`);
+      const created = await client.createDomain(projectDir, {
+        name: projectName,
+        language: "en",
+        intent: domainDraft.intent,
+        roots: domainDraft.rootCategories,
+        maxDepth: domainDraft.depth,
+        facets: domainDraft.includeFacets,
+        excludeFacets: domainDraft.excludeFacets,
+      });
+      const domainFile = `${projectDir}/domain.yaml`;
+      setDomainPath(domainFile);
+      addLog(`Domain draft written: ${JSON.stringify(created)}`);
+
+      addLog(`Requesting boundary questions for intent "${domainDraft.intent}"...`);
+      const questions = await client.boundaryQuestions(domainDraft.intent, {
+        include_facets: domainDraft.includeFacets,
+        exclude_facets: domainDraft.excludeFacets,
+        rationale: domainDraft.facetRationale,
+      });
+      if (Array.isArray(questions)) {
+        const defaults: Record<string, string> = {};
+        for (const q of questions) defaults[q.id] = q.recommended;
+        setDomainDraft({ boundaryQuestions: questions, boundaryAnswers: defaults });
+      }
+      addLog(`Boundary questions result: ${JSON.stringify(questions)}`);
+    } catch (err) {
+      addLog(`Boundary questions failed: ${err}`);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleApplyAnswers = async () => {
+    if (!domainPath.trim() || domainDraft.boundaryQuestions.length === 0) return;
+    setLoading(true);
+    try {
+      addLog("Applying boundary answers to domain definition...");
+      const updated = await client.applyAnswers(
+        domainPath,
+        projectDir,
+        domainDraft.boundaryQuestions,
+        domainDraft.boundaryAnswers,
+      );
+      setDomainDraft({
+        includeFacets: updated?.facets?.include ?? domainDraft.includeFacets,
+        excludeFacets: updated?.facets?.exclude ?? domainDraft.excludeFacets,
+        boundaryQuestions: [],
+      });
+      addLog(`Domain updated with answers: ${JSON.stringify(updated)}`);
+    } catch (err) {
+      addLog(`Apply answers failed: ${err}`);
     } finally {
       setLoading(false);
     }
@@ -41,7 +121,8 @@ export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
         intent: domainDraft.intent,
         roots: domainDraft.rootCategories,
         maxDepth: domainDraft.depth,
-        facets: domainDraft.facets,
+        facets: domainDraft.includeFacets,
+        excludeFacets: domainDraft.excludeFacets,
       });
       addLog(`Domain written: ${JSON.stringify(created)}`);
 
@@ -82,6 +163,75 @@ export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
           Propose Facets with AI
         </button>
       </div>
+
+      {(domainDraft.includeFacets.length > 0 || domainDraft.excludeFacets.length > 0 || domainDraft.facetRationale) && (
+        <div style={{ background: "#f8f9fa", padding: "1rem", borderRadius: "4px", border: "1px solid #eee", marginBottom: "1rem" }}>
+          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Include Facets (comma-separated):</label>
+          <input
+            type="text"
+            value={domainDraft.includeFacets.join(", ")}
+            onChange={(e) =>
+              setDomainDraft({ includeFacets: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })
+            }
+            style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc", marginBottom: "0.5rem" }}
+          />
+          <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Exclude Facets (comma-separated):</label>
+          <input
+            type="text"
+            value={domainDraft.excludeFacets.join(", ")}
+            onChange={(e) =>
+              setDomainDraft({ excludeFacets: e.target.value.split(",").map((s) => s.trim()).filter(Boolean) })
+            }
+            style={{ width: "100%", padding: "0.5rem", borderRadius: "4px", border: "1px solid #ccc" }}
+          />
+          {domainDraft.facetRationale && (
+            <p style={{ color: "#666", marginTop: "0.5rem", marginBottom: 0 }}>{domainDraft.facetRationale}</p>
+          )}
+          <button
+            onClick={handleGetBoundaryQuestions}
+            disabled={loading || !projectDir.trim() || !domainDraft.intent.trim()}
+            style={{ marginTop: "0.75rem", padding: "0.4rem 1rem", background: "#333", color: "#fff", border: "none", borderRadius: "4px" }}
+          >
+            Refine Boundaries with AI
+          </button>
+        </div>
+      )}
+
+      {domainDraft.boundaryQuestions.length > 0 && (
+        <div style={{ background: "#e9f5ff", padding: "1rem", borderRadius: "4px", marginBottom: "1rem" }}>
+          <h3 style={{ marginTop: 0 }}>Boundary Questions</h3>
+          {domainDraft.boundaryQuestions.map((q) => (
+            <div key={q.id} style={{ padding: "0.5rem 0", borderBottom: "1px solid #d6e9f7" }}>
+              <p style={{ margin: "0 0 0.25rem 0" }}>{q.question}</p>
+              <label style={{ marginRight: "1rem" }}>
+                <input
+                  type="radio"
+                  name={`boundary-${q.id}`}
+                  checked={(domainDraft.boundaryAnswers[q.id] || q.recommended) === "include"}
+                  onChange={() => setDomainDraft({ boundaryAnswers: { ...domainDraft.boundaryAnswers, [q.id]: "include" } })}
+                />
+                <span style={{ marginLeft: "0.25rem" }}>Include{q.recommended === "include" ? " (recommended)" : ""}</span>
+              </label>
+              <label>
+                <input
+                  type="radio"
+                  name={`boundary-${q.id}`}
+                  checked={(domainDraft.boundaryAnswers[q.id] || q.recommended) === "exclude"}
+                  onChange={() => setDomainDraft({ boundaryAnswers: { ...domainDraft.boundaryAnswers, [q.id]: "exclude" } })}
+                />
+                <span style={{ marginLeft: "0.25rem" }}>Exclude{q.recommended === "exclude" ? " (recommended)" : ""}</span>
+              </label>
+            </div>
+          ))}
+          <button
+            onClick={handleApplyAnswers}
+            disabled={loading}
+            style={{ marginTop: "0.75rem", padding: "0.4rem 1rem", background: "#28a745", color: "#fff", border: "none", borderRadius: "4px" }}
+          >
+            Apply Answers
+          </button>
+        </div>
+      )}
 
       <div style={{ marginBottom: "1rem" }}>
         <label style={{ display: "block", marginBottom: "0.5rem", fontWeight: "bold" }}>Root Categories (comma-separated):</label>

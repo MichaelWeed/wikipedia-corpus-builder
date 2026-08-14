@@ -125,7 +125,15 @@ export class EngineClient {
 
   async createDomain(
     projectDir: string,
-    opts: { name: string; language: string; intent?: string; roots: string[]; maxDepth: number; facets?: string[] },
+    opts: {
+      name: string;
+      language: string;
+      intent?: string;
+      roots: string[];
+      maxDepth: number;
+      facets?: string[];
+      excludeFacets?: string[];
+    },
   ) {
     return this.call("domain.create", {
       project_dir: projectDir,
@@ -135,6 +143,7 @@ export class EngineClient {
       roots: opts.roots,
       max_depth: opts.maxDepth,
       facets: opts.facets,
+      exclude_facets: opts.excludeFacets,
     });
   }
 

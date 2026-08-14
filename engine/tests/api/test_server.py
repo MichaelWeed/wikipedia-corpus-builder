@@ -5,6 +5,8 @@ import subprocess
 import sys
 from pathlib import Path
 
+import yaml
+
 FIXWIKI_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "fixwiki"
 EXAMPLE_DOMAIN = (
     Path(__file__).resolve().parent.parent.parent.parent
@@ -326,25 +328,51 @@ def test_engine_serve_subprocess_ai_domain_methods(tmp_path: Path) -> None:
     res_data = apply_res["result"]
     assert "retro-games" in res_data["facets"]["include"]
 
-    # 3. Test domain.proposeFacets & domain.boundaryQuestions against offline server
+    # 3. Test domain.proposeFacets & domain.boundaryQuestions against an
+    # endpoint nothing listens on. This must NOT be Ollama's real default
+    # port (11434): on a dev machine with Ollama actually running there,
+    # that would silently exercise the live model instead of the offline
+    # failure path, making the test flaky/slow depending on host state.
+    unreachable = "http://127.0.0.1:59999"
     prop_res = raw_call(
         4,
         "domain.proposeFacets",
-        {"intent": "Video games", "endpoint": "http://127.0.0.1:11434"},
+        {"intent": "Video games", "endpoint": unreachable},
     )
-    # Offline provider produces JSON-RPC error or empty/exception response
-    assert "error" in prop_res or "result" in prop_res
+    assert "error" in prop_res
+    assert prop_res["error"]["data"]["code"] == "MODEL_SCHEMA_TEST_FAILED"
 
     bq_res = raw_call(
         5,
         "domain.boundaryQuestions",
         {
             "intent": "Video games",
-            "facets": {"include_facets": ["retro"], "exclude_facets": []},
-            "endpoint": "http://127.0.0.1:11434",
+            "facets": {"include_facets": ["retro"], "exclude_facets": [], "rationale": ""},
+            "endpoint": unreachable,
         },
     )
-    assert "error" in bq_res or "result" in bq_res
+    assert "error" in bq_res
+    assert bq_res["error"]["data"]["code"] == "MODEL_SCHEMA_TEST_FAILED"
+
+    # 4. Test domain.create with exclude_facets round-trips into DomainFacets.exclude
+    c_res2 = raw_call(
+        6,
+        "domain.create",
+        {
+            "project_dir": str(proj_dir),
+            "name": "Test Domain",
+            "language": "en",
+            "intent": "Test intent",
+            "roots": ["Video_games"],
+            "max_depth": 3,
+            "facets": ["retro"],
+            "exclude_facets": ["esports"],
+        },
+    )
+    assert "result" in c_res2
+    written = yaml.safe_load(domain_path.read_text(encoding="utf-8"))
+    assert written["facets"]["include"] == ["retro"]
+    assert written["facets"]["exclude"] == ["esports"]
 
     proc.stdin.close()
     proc.wait(timeout=5)
