@@ -7,7 +7,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P0.1 — 2026-08-13 — Repo scaffold & Typer CLI structure initialized
 - [x] P0.2 — 2026-08-13 — Governance docs, licensing, and spec skeletons added
 - [x] P0.3 — 2026-08-13 — Data contracts & JSON schema generator completed
-- [ ] P0.4 Synthetic fixture generator + golden fixtures
+- [x] P0.4 — 2026-08-13 — Synthetic fixture generator & golden fixwiki dump files committed
 - [ ] P0.5 CI workflows
 - [ ] P0.6 ADRs 0001–0006
 
