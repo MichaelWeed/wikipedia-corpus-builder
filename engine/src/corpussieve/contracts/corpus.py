@@ -20,7 +20,7 @@ class CorpusSource(BaseModel):
 class CorpusContent(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    format: Literal["wikitext"] = "wikitext"
+    format: Literal["wikitext", "markdown"] = "wikitext"
     raw: str
 
 

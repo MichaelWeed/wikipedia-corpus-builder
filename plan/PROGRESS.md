@@ -45,10 +45,10 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P4.6 — 2026-08-13 — CLI subcommands corpussieve build run and validate run + resume completed
 
 ## P5 Normalization & exports
-- [ ] P5.1 Normalizer interface + wikitext→markdown
-- [ ] P5.2 Markdown exporter
-- [ ] P5.3 JSONL exporter + attribution
-- [ ] P5.4 CLI: `export` + AnythingLLM ingestion guide
+- [x] P5.1 — 2026-08-13 — Normalizer interface + wikitext→markdown completed
+- [x] P5.2 — 2026-08-13 — Markdown exporter + path-traversal safe slugify completed
+- [x] P5.3 — 2026-08-13 — JSONL exporter + ATTRIBUTION.md and attribution.json generator completed
+- [x] P5.4 — 2026-08-13 — CLI corpussieve export markdown/jsonl + AnythingLLM ingestion guide completed
 
 ## P6 Desktop application
 - [ ] P6.1 Engine protocol v1 (spec + Python server)
