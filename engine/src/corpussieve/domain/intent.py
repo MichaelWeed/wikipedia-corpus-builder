@@ -61,8 +61,13 @@ def apply_answers(
     answers: dict[str, str],
 ) -> DomainDefinition:
     """Fold accepted answers into domain definition facets include/exclude lists."""
-    inc = set(defn.facets.include)
-    exc = set(defn.facets.exclude)
+    from corpussieve.contracts.domain import DomainFacets
+
+    cur_inc = defn.facets.include if (defn.facets and defn.facets.include) else []
+    cur_exc = defn.facets.exclude if (defn.facets and defn.facets.exclude) else []
+
+    inc = set(cur_inc)
+    exc = set(cur_exc)
 
     for q in questions:
         ans = answers.get(q.id, q.recommended).lower()
@@ -73,6 +78,5 @@ def apply_answers(
             exc.add(q.facet_target)
             inc.discard(q.facet_target)
 
-    defn.facets.include = sorted(inc)
-    defn.facets.exclude = sorted(exc)
+    defn.facets = DomainFacets(include=sorted(inc), exclude=sorted(exc))
     return defn

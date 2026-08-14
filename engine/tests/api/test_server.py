@@ -251,3 +251,100 @@ def test_engine_serve_subprocess_model_methods(tmp_path: Path) -> None:
 
     proc.stdin.close()
     proc.wait(timeout=5)
+
+
+def test_engine_serve_subprocess_ai_domain_methods(tmp_path: Path) -> None:
+    """Subprocess protocol test for domain AI-assist methods."""
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{src_dir}:{env.get('PYTHONPATH', '')}"
+
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir(parents=True)
+    domain_path = proj_dir / "domain.yaml"
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "corpussieve.cli.main", "engine", "serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+
+    def raw_call(req_id: int, method: str, params: dict) -> dict:
+        req = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
+        proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
+        proc.stdin.flush()  # type: ignore[union-attr]
+        line = proc.stdout.readline()  # type: ignore[union-attr]
+        if not line:
+            stderr_text = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(f"Engine serve exited/crashed. Stderr:\n{stderr_text}")
+        return json.loads(line)
+
+    raw_call(1, "engine.hello", {})
+
+    # 1. Test domain.create
+    c_res = raw_call(
+        2,
+        "domain.create",
+        {
+            "project_dir": str(proj_dir),
+            "name": "Test Domain",
+            "language": "en",
+            "intent": "Test intent",
+            "roots": ["Video_games"],
+            "max_depth": 3,
+        },
+    )
+    assert "result" in c_res
+
+    # 2. Test domain.applyAnswers (folds answers into domain.yaml)
+    questions = [
+        {
+            "id": "q1",
+            "question": "Include retro games?",
+            "recommended": "include",
+            "facet_target": "retro-games",
+        }
+    ]
+    answers = {"q1": "include"}
+
+    apply_res = raw_call(
+        3,
+        "domain.applyAnswers",
+        {
+            "domain": str(domain_path),
+            "project_dir": str(proj_dir),
+            "questions": questions,
+            "answers": answers,
+        },
+    )
+    assert "result" in apply_res
+    res_data = apply_res["result"]
+    assert "retro-games" in res_data["facets"]["include"]
+
+    # 3. Test domain.proposeFacets & domain.boundaryQuestions against offline server
+    prop_res = raw_call(
+        4,
+        "domain.proposeFacets",
+        {"intent": "Video games", "endpoint": "http://127.0.0.1:11434"},
+    )
+    # Offline provider produces JSON-RPC error or empty/exception response
+    assert "error" in prop_res or "result" in prop_res
+
+    bq_res = raw_call(
+        5,
+        "domain.boundaryQuestions",
+        {
+            "intent": "Video games",
+            "facets": {"include_facets": ["retro"], "exclude_facets": []},
+            "endpoint": "http://127.0.0.1:11434",
+        },
+    )
+    assert "error" in bq_res or "result" in bq_res
+
+    proc.stdin.close()
+    proc.wait(timeout=5)

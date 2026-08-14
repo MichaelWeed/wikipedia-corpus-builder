@@ -119,6 +119,10 @@ export class EngineClient {
     return this.call("domain.boundaryQuestions", { intent, facets });
   }
 
+  async applyAnswers(domainPath: string, projectDir: string, questions: any[], answers: Record<string, string>) {
+    return this.call("domain.applyAnswers", { domain: domainPath, project_dir: projectDir, questions, answers });
+  }
+
   async createDomain(
     projectDir: string,
     opts: { name: string; language: string; intent?: string; roots: string[]; maxDepth: number; facets?: string[] },
