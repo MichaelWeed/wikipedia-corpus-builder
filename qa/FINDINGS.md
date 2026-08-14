@@ -16,6 +16,14 @@ inferred from reading code.
 traversal) is completely non-functional on real Wikipedia data. This is not a
 degradation; it is total.
 
+**Scope is limited to the metadata/category layer.** The extraction half of the
+product was tested independently against the real 25 GB enwiki dump and
+**works correctly**: the multistream index parsed 400,000 entries in 0.4 s, and
+`extract_selected_pages({12, 25, 39})` returned Anarchism (113,647 chars),
+Autism spectrum, and Albedo (71,574 chars) with correct revision IDs in 30 s,
+without decompressing the full file. CorpusSieve is one schema fix away from a
+working end-to-end pipeline on real Wikipedia.
+
 **Reproduced:** built the metadata index from the real simplewiki 20260801 dump:
 
 | table | rows |

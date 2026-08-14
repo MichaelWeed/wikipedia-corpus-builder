@@ -40,6 +40,7 @@ recovered 13,628 subcategory edges and 82,379 memberships from the real dump.
 | `smoke_real_dump.sh [dir]` | Real-dump pipeline: inspect → metadata → compile → preview → build → validate → export. Non-destructive; never purges. |
 | `fetch_dumps.sh <wiki> [date]` | Download a dump set with correct **dated** filenames. |
 | `dump_status.sh` | Report which dump files are present, complete, or misnamed. |
+| `verify_extraction_real.py` | Prove the extraction layer works on a real dump (independent of the FINDINGS #1 blocker). |
 
 ## Downloaded data
 

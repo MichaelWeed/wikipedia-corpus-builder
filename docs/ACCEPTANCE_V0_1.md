@@ -15,7 +15,7 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 | 9 | The user can preview and inspect why pages are selected | `tests/domain/test_preview.py` | PASSED | 2026-08-13 |
 | 10 | A resolved lock is produced before build | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
 | 11 | The build consumes the lock and does not ask the LLM to improvise new rules | `tests/extraction/test_build.py` | PASSED | 2026-08-13 |
-| 12 | The selected corpus can be extracted from a real multistream dump | `tests/extraction/test_multistream.py` (synthetic fixture only) | FAILED | 2026-08-14 |
+| 12 | The selected corpus can be extracted from a real multistream dump | Extraction mechanism VERIFIED on real 25 GB enwiki (3 articles pulled by page_id in 30 s, full wikitext, no full decompression). Blocked only because *selection* yields nothing (FINDINGS #1) | BLOCKED | 2026-08-14 |
 | 13 | Canonical JSONL and Markdown exports are produced | `tests/exporters/` + `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
 | 14 | The build can resume after interruption | `tests/extraction/test_build_resume_bugs.py` + `tests/jobs/test_state.py` | PASSED | 2026-08-14 |
 | 15 | The original source remains unchanged after ordinary build | `tests/safety/test_destructive_invariants.py::test_build_never_deletes_source` | PASSED | 2026-08-14 |
