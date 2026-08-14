@@ -1,0 +1,19 @@
+{
+  "video_games_domain": {
+    "counts_by_depth": {
+      "0": 1,
+      "1": 5
+    },
+    "excluded_pages": [
+      "Monopoly",
+      "Cycle_Page_1"
+    ],
+    "selected_pages": [
+      "Super_Mario_Bros",
+      "The_Legend_of_Zelda",
+      "Pok\u00e9mon_(fixture)",
+      "\u65e5\u672c\u306e\u30b2\u30fc\u30e0",
+      "Malformed_Wikitext_Page"
+    ]
+  }
+}

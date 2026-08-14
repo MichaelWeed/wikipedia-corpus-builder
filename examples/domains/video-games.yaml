@@ -1,0 +1,37 @@
+schema_version: 1
+id: video-games
+name: Video Games Corpus
+description: Topic domain specification for video games and related subgenres.
+language: en
+
+policy:
+  mode: balanced
+  ambiguous_branch: review
+  max_total_categories: 1000
+  max_total_articles: 50000
+  include_redirects: false
+
+facets:
+  include:
+    - game
+    - gaming
+    - Nintendo
+    - PlayStation
+    - Xbox
+  exclude:
+    - board game
+    - tabletop
+    - card game
+
+roots:
+  - query: Category:Video games
+    max_depth: 4
+
+hard_exclude_pages:
+  - List of board games
+
+forced_include_pages:
+  - Chess in video games
+
+exclude_categories:
+  - Category:Tabletop games
