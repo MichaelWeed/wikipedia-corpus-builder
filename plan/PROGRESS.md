@@ -4,7 +4,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 `- [x] P1.3 — 2026-08-20 — <one-line note>`
 
 ## P0 Foundations & contracts
-- [ ] P0.1 Repo scaffold & tooling
+- [x] P0.1 — 2026-08-13 — Repo scaffold & Typer CLI structure initialized
 - [ ] P0.2 Governance & docs skeleton
 - [ ] P0.3 Contracts (Pydantic models + JSON Schemas)
 - [ ] P0.4 Synthetic fixture generator + golden fixtures
