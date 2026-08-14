@@ -5,42 +5,172 @@ on:
     tags:
       - 'v*'
 
+permissions:
+  contents: write
+
 jobs:
   release-matrix:
     name: Build Release Artifacts (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
     strategy:
+      fail-fast: false
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
+
     steps:
       - uses: actions/checkout@v4
 
-      - name: Set up Python
+      - name: Install pnpm & Node
+        uses: pnpm/action-setup@v3
+        with:
+          version: 9
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: 'pnpm'
+          cache-dependency-path: 'apps/desktop/pnpm-lock.yaml'
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Install uv
+        uses: astral-sh/setup-uv@v3
+        with:
+          enable-cache: true
+
+      - name: Setup Python
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
 
-      - name: Install uv
-        run: curl -sSf https://astral.sh/uv/install.sh | sh
-        continue-on-error: true
-
-      - name: Build Engine Wheel & Sdist
+      # Tauri v2 on Linux links against webkit2gtk/libsoup/appindicator at
+      # build time; these aren't preinstalled on ubuntu-latest runners.
+      - name: Install Linux system dependencies (Tauri)
+        if: runner.os == 'Linux'
         run: |
-          cd engine
-          pip install hatchling
-          python -m pip install --upgrade build
-          python -m build
+          sudo apt-get update
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
+            librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
+            libayatana-appindicator3-dev
 
-      - name: Generate Checksums & Artifacts
+      - name: Install engine dependencies
+        working-directory: engine
+        run: uv sync
+
+      # Pure-Python (no compiled extensions -- see engine/pyproject.toml),
+      # so wheel/sdist are OS-independent; build once to avoid uploading
+      # three identical copies.
+      - name: Build engine wheel & sdist
+        if: runner.os == 'Linux'
+        working-directory: engine
+        run: uv build --out-dir dist
+
+      - name: Build engine sidecar (PyInstaller)
+        shell: bash
+        run: engine/scripts/build_sidecar.sh
+
+      - name: Install desktop dependencies
+        run: pnpm -C apps/desktop install
+
+      # Tauri's CLI signs/notarizes automatically when these are present and
+      # produces an unsigned (macOS: ad-hoc signed) build when they aren't --
+      # see docs/RELEASING.md for what to provision and how. This half of the
+      # pipeline is UNVERIFIED: it follows Tauri v2's documented signing env
+      # vars, but no real certificates have been exercised against it.
+      - name: Build desktop installers (Tauri)
+        working-directory: apps/desktop
+        env:
+          APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
+          APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
+          APPLE_SIGNING_IDENTITY: ${{ secrets.APPLE_SIGNING_IDENTITY }}
+          APPLE_ID: ${{ secrets.APPLE_ID }}
+          APPLE_PASSWORD: ${{ secrets.APPLE_PASSWORD }}
+          APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+          WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
+          WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
+        run: pnpm tauri build
+
+      - name: Warn if this platform's signing secrets are absent
+        shell: bash
+        run: |
+          warn() { echo "::warning::$1"; echo "- ⚠️ $1" >> "$GITHUB_STEP_SUMMARY"; }
+          if [ "$RUNNER_OS" = "macOS" ] && [ -z "${{ secrets.APPLE_CERTIFICATE }}" ]; then
+            warn "APPLE_CERTIFICATE not set -- macOS build is unsigned/ad-hoc-signed, not notarized. Gatekeeper will warn on first launch."
+          fi
+          if [ "$RUNNER_OS" = "Windows" ] && [ -z "${{ secrets.WINDOWS_CERTIFICATE }}" ]; then
+            warn "WINDOWS_CERTIFICATE not set -- Windows installer is unsigned. SmartScreen will warn on first run."
+          fi
+
+      # ---- SBOM (CycloneDX where the tooling supports it cleanly) ----
+
+      - name: SBOM - Rust dependencies (CycloneDX)
+        run: |
+          cargo install cargo-cyclonedx --locked
+          cd apps/desktop/src-tauri
+          cargo cyclonedx --format json
+
+      - name: SBOM - Python dependencies (CycloneDX)
+        if: runner.os == 'Linux'
+        working-directory: engine
+        run: |
+          uv export --no-dev --no-emit-project --format requirements-txt -o requirements-sbom.txt
+          uvx --from cyclonedx-bom cyclonedx-py requirements requirements-sbom.txt -o engine-sbom.cdx.json --of JSON
+
+      - name: SBOM - Node dependencies (license report)
+        # @cyclonedx/cyclonedx-npm shells out to `npm ls`, which doesn't
+        # understand pnpm's node_modules layout on this project (verified
+        # locally: it errors and, worse, corrupted this repo's committed
+        # pnpm-lock.yaml when a related `pnpm import` was attempted). pnpm's
+        # own license report is not CycloneDX, but is accurate and safe.
+        if: runner.os == 'Linux'
+        run: pnpm -C apps/desktop licenses list --json > apps/desktop/node-dependencies.json
+
+      - name: Checksums
         shell: bash
         run: |
           mkdir -p release-dist
-          cp engine/dist/* release-dist/ || true
+          cp engine/dist/* release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/target/release/bundle/dmg/*.dmg release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/target/release/bundle/msi/*.msi release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/target/release/bundle/nsis/*.exe release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/target/release/bundle/appimage/*.AppImage release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/target/release/bundle/deb/*.deb release-dist/ 2>/dev/null || true
+          cp apps/desktop/src-tauri/corpussieve-desktop.cdx.json release-dist/rust-sbom.cdx.json 2>/dev/null || true
+          cp engine/engine-sbom.cdx.json release-dist/ 2>/dev/null || true
+          cp apps/desktop/node-dependencies.json release-dist/ 2>/dev/null || true
           cd release-dist
-          sha256sum * > checksums.txt || shasum -a 256 * > checksums.txt
+          ( sha256sum * 2>/dev/null || shasum -a 256 * ) > checksums.txt
 
-      - name: Upload Artifacts
+      - name: Upload artifacts
         uses: actions/upload-artifact@v4
         with:
           name: release-${{ matrix.os }}
           path: release-dist/
+
+  publish-release:
+    name: Publish Draft GitHub Release
+    needs: release-matrix
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all platform artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: all-artifacts
+
+      - name: Combine checksums
+        run: |
+          mkdir -p combined
+          find all-artifacts -mindepth 2 -maxdepth 2 -type f ! -name 'checksums.txt' -exec cp {} combined/ \;
+          cd combined
+          ( sha256sum * 2>/dev/null || shasum -a 256 * ) > checksums.txt
+
+      - name: Create draft release
+        uses: softprops/action-gh-release@v2
+        with:
+          draft: true
+          generate_release_notes: true
+          files: combined/*
