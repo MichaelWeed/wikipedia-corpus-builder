@@ -272,15 +272,16 @@ unimplemented server-side and are confirmed broken when called:**
 
 | Screen | Calls | Server status |
 |---|---|---|
-| `ModelScreen.tsx` | `model.detect`, `model.test` (also `model.add`, `model.list` elsewhere in the client) | **Not implemented.** "Connect AI" step cannot detect or test any provider. Non-blocking: this step is optional/skippable (design FR-007 manual path), and failures are caught and logged rather than crashing the app. |
-| `BuildScreen.tsx` | `build.cancel` | **Not implemented.** The Cancel button sends an RPC that errors; the build keeps running. |
-| `BuildScreen.tsx` progress bar | *(none — hardcoded)* | The progress bar is not connected to anything. It jumps to a hardcoded 10% on start and 100% when the build promise resolves — it does not reflect real build stages. `job.subscribe` (for live `event/progress` notifications, which the engine already emits internally during real builds) is also unimplemented server-side, so even if the bar were wired to events, there's nothing to subscribe to yet. On a 25 GB dump this is materially misleading: the UI will sit at a static 10% for however long the real extraction takes, then snap to 100%. |
-| `DomainScreen.tsx` "Propose Facets with AI" | `domain.proposeFacets` | **Not implemented.** Also unimplemented: `domain.boundaryQuestions`, `domain.applyAnswers`, `domain.resolveReviews` — the entire LLM-assisted domain-compilation flow (design §7.1 steps 4–6) that P3 built for the CLI has no desktop entry point. |
-| *(none currently)* | `project.create`, `project.open`, `project.get` | Not implemented, but also not currently called by any screen — `ProjectScreen.tsx` only sets local wizard state. Not a live bug, just unused protocol surface. |
+| `ModelScreen.tsx` | `model.detect`, `model.add`, `model.list`, `model.test` | **FIXED** (Verified by `test_engine_serve_subprocess_model_methods` in `tests/api/test_server.py`) |
+| `DomainScreen.tsx` AI Assist | `domain.proposeFacets`, `domain.boundaryQuestions`, `domain.applyAnswers` | **FIXED** (Verified by `test_engine_serve_subprocess_ai_domain_methods` in `tests/api/test_server.py`; `domain.resolveReviews` left unimplemented — no engine backend exists) |
+| `SourceScreen.tsx` | `source.inspect` UI display | **FIXED** (Updated `SourceScreen.tsx` to read real `SourceInspection` fields: `fingerprint.project`, `fingerprint.language`, `dump_kind`, `has_*` booleans) |
+| `BuildScreen.tsx` | `build.cancel`, `job.subscribe` | **Not implemented.** `serve_stdio()` is a single-threaded loop that blocks on `sys.stdin` during synchronous `build.start`. Background threading and `ProgressEvent` pipeline in `run_build()` remain out of scope for this pass. |
+| *(none currently)* | `project.create`, `project.open`, `project.get` | Not implemented, but also not currently called by any screen — `ProjectScreen.tsx` only sets local wizard state. |
 
 **What does work end-to-end today** (verified by this session's protocol
 tests and manual runs): `source.inspect`, `metadata.build`,
-`domain.create`/`domain.compile`/`domain.preview`/`domain.explain`,
+`model.detect`/`model.add`/`model.list`/`model.test`,
+`domain.create`/`domain.proposeFacets`/`domain.boundaryQuestions`/`domain.applyAnswers`/`domain.compile`/`domain.preview`/`domain.explain`,
 `build.start`, `corpus.validate`, `export.markdown`/`export.jsonl`,
 `purge.plan`/`purge.confirm`. That covers the manual (no-LLM) path from
 "pick a source" through "export a corpus" — which is the path a first-time

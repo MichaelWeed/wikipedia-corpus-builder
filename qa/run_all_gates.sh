@@ -13,8 +13,9 @@ ok()   { echo "  ✅ PASS  $1"; PASS=$((PASS+1)); }
 bad()  { echo "  ❌ FAIL  $1"; FAIL=$((FAIL+1)); }
 run()  { # run <label> <cmd...>
   local label="$1"; shift
-  if "$@" >/tmp/cs_gate.log 2>&1; then ok "$label"; else
-    bad "$label"; echo "     ---- last 15 lines ----"; tail -15 /tmp/cs_gate.log | sed 's/^/     /'
+  local logfile="$REPO/.cs_gate.log"
+  if "$@" >"$logfile" 2>&1; then ok "$label"; else
+    bad "$label"; echo "     ---- last 15 lines ----"; tail -15 "$logfile" | sed 's/^/     /'
   fi
 }
 
