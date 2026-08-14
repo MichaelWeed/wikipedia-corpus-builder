@@ -13,7 +13,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 
 ## P1 Source inspection & metadata index
 - [x] P1.1 — 2026-08-13 — Source layer skeleton & Wikimedia dump naming parser completed
-- [ ] P1.2 Source fingerprinting
+- [x] P1.2 — 2026-08-13 — Quick-hash source fingerprinting & drift detection completed
 - [ ] P1.3 SQL dump parser (page, categorylinks)
 - [ ] P1.4 Metadata SQLite index build
 - [ ] P1.5 Metadata query API
