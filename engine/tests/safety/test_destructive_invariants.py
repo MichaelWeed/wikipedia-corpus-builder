@@ -15,6 +15,7 @@ from corpussieve.metadata.queries import MetadataIndex
 from corpussieve.safety.preconditions import check_purge_preconditions
 from corpussieve.safety.purge import execute_purge
 from corpussieve.sources.wikimedia.adapter import WikimediaXmlDumpAdapter
+from corpussieve.sources.wikimedia.naming import parse_dump_filename
 
 FIXWIKI_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "fixwiki"
 EX_YAML = (
@@ -90,9 +91,17 @@ def test_build_never_deletes_source(tmp_path: Path) -> None:
 def test_changed_source_blocks_purge(tmp_path: Path) -> None:
     proj_dir, out_dir, source_dir = _setup_project(tmp_path)
 
-    # Modify an existing source dump file after build
-    dump_files = [f for f in source_dir.iterdir() if f.is_file()]
-    assert dump_files, "Expected dump files in source_dir"
+    # Modify an existing source dump file after build. FIXWIKI_DIR also
+    # contains expected.json (not a Wikimedia dump file), so this must
+    # filter to files check_purge_preconditions's fingerprint check actually
+    # scans -- picking the raw first iterdir() entry is directory-iteration-
+    # order-dependent and previously tampered expected.json on Windows
+    # (NTFS listing is roughly alphabetical: "expected.json" < "fixwiki-...")
+    # while landing on a real dump file on macOS/Linux by luck, so the
+    # fingerprint never actually changed and this test silently passed for
+    # the wrong reason there while failing outright on Windows.
+    dump_files = [f for f in source_dir.iterdir() if f.is_file() and parse_dump_filename(f.name)]
+    assert dump_files, "Expected recognized Wikimedia dump files in source_dir"
     dump_files[0].write_bytes(b"tampered content")
 
     plan, blockers = check_purge_preconditions(proj_dir, output_dir=out_dir / "corpus")

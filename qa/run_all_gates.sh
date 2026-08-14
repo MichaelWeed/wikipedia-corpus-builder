@@ -54,11 +54,17 @@ fi
 echo ""
 echo "[3/3] Committed-artifact drift (schemas + fixtures must regenerate byte-identically)"
 ( cd engine && uv run python scripts/export_schemas.py    >/dev/null 2>&1 )
-( cd engine && uv run python tests/fixtures/generator.py  >/dev/null 2>&1 )
-DRIFT="$(git status --porcelain -- schemas engine/tests/fixtures/fixwiki)"
-if [ -z "$DRIFT" ]; then ok "no regeneration drift"; else
-  bad "regeneration drift detected"; echo "$DRIFT" | sed 's/^/     /'
+DRIFT="$(git status --porcelain -- schemas)"
+if [ -z "$DRIFT" ]; then ok "no schema regeneration drift"; else
+  bad "schema regeneration drift detected"; echo "$DRIFT" | sed 's/^/     /'
 fi
+
+# fixwiki uses check_fixture_drift.py, not a raw git diff -- gzip's
+# compressed byte output isn't guaranteed identical across zlib
+# versions/platforms for byte-identical decompressed content (observed in
+# real CI on this repo's two .sql.gz fixtures; see qa/FINDINGS.md #11).
+( cd engine && uv run python tests/fixtures/generator.py  >/dev/null 2>&1 )
+run "no fixture regeneration drift" bash -c "cd engine && uv run python scripts/check_fixture_drift.py"
 
 echo ""
 echo "=============================================="

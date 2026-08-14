@@ -351,8 +351,7 @@ the fallback path finding nothing there either, and failed with exit code 2.
 committed `fixwiki` fixture inside the test itself (`_build_real_corpus`,
 same pattern as `tests/extraction/test_build.py`), making it fully
 self-contained. Verified locally (137/137 tests pass, first fully clean run
-of this session) and this is the fix that made the real CI run in question
-pass end to end.
+of this session).
 
 **Also discovered by the same first CI run**, both now fixed:
 - `desktop.yml`/`release.yml`'s Linux system-dependency list installed both
@@ -370,6 +369,76 @@ pass end to end.
   Reproduced locally by deleting `dist/` and `target/` fresh, confirmed the
   fix (`pnpm -C apps/desktop build` before any bare `cargo` step) resolves
   it.
+
+This did **not** make CI pass end to end — the very next push surfaced two
+more, entirely different, previously latent bugs (#12, #13 below). Each
+fix so far has been real and locally verified before pushing, but "verified
+locally" and "actually green on real CI" have repeatedly turned out to be
+different claims for this project; treat any status here as provisional
+until a run is actually observed green.
+
+---
+
+## 12. MEDIUM (test hermeticity, Windows-specific) — `test_changed_source_blocks_purge` tampered the wrong file on Windows
+
+**Discovered** on the *second* real CI run (2026-08-14), after fixing
+finding #11: `engine.yml` passed on ubuntu/macos's pytest step but failed
+on Windows: `test_changed_source_blocks_purge` asserted `plan is None`
+(purge should be blocked because the source changed) but got a real
+`PurgePlan` back — the precondition check found no change.
+
+**Root cause**: the test picks "a dump file" via
+`[f for f in source_dir.iterdir() if f.is_file()][0]` and tampers it.
+`tests/fixtures/fixwiki/` also contains `expected.json` (not a Wikimedia
+dump file — used by other tests to assert expected traversal output),
+which `shutil.copytree` carries into `source_dir` alongside the 5 real dump
+files. `expected.json` sorts alphabetically before every `fixwiki-...`
+filename. NTFS directory enumeration (what Windows' `iterdir()` walks) is
+close to alphabetical; APFS/ext4 are not. So `dump_files[0]` picked
+`expected.json` on Windows and one of the real dump files on macOS/Linux —
+by luck, not by design. `check_purge_preconditions`'s fingerprint check
+(correctly) only scans files `parse_dump_filename` recognizes, so tampering
+`expected.json` was invisible to it: the fingerprint genuinely didn't
+change, and the assertion that it should have caught a real regression here
+never got exercised on Windows at all, for as long as this test has existed.
+
+**Fixed**: filter to `parse_dump_filename(f.name)`-recognized files before
+picking one to tamper. Verified locally (7/7 safety tests pass) — the
+underlying platform-dependent-iteration-order behavior can't be reproduced
+on macOS, so this fix's correctness rests on the root-cause analysis above,
+not a local repro; the next Windows CI run is the actual test of it.
+
+---
+
+## 13. LOW (CI fragility) — fixture regeneration isn't byte-identical across platforms
+
+**Discovered** on the same second CI run: `engine.yml`'s "Fixture
+Regeneration Diff Check" (`tests/fixtures/generator.py` then
+`git diff --exit-code tests/fixtures/fixwiki`) failed on both ubuntu-latest
+and macos-latest — regenerating produced **different compressed bytes on
+each**, both different from what's committed, for `fixwiki-*-page.sql.gz`
+and `fixwiki-*-categorylinks.sql.gz`. `bz2`-compressed fixtures (3 of the 5
+files) showed no drift.
+
+**Root cause**: `generator.py` already passes `mtime=0` to `gzip.compress`
+for exactly this reason, but that only pins the gzip header's embedded
+timestamp — it doesn't make the DEFLATE-compressed *byte stream* identical
+across zlib versions. Different platforms ship different zlib versions,
+and zlib does not guarantee bit-for-bit identical compressed output across
+versions for identical input, even at a fixed compression level. `bz2` has
+no equivalent timestamp field and, empirically, no equivalent cross-version
+byte drift here either. This was always a latent risk in "commit compressed
+binary fixtures, verify regeneration is byte-identical" — it just took
+running the check on a machine other than the one that produced the
+committed fixtures to surface it, which had never happened before real CI.
+
+**Fixed**: added `engine/scripts/check_fixture_drift.py`, used by both
+`qa/run_all_gates.sh` and `engine.yml` in place of a raw `git diff
+--exit-code`. It decompresses `.gz` fixtures before comparing (so a
+genuine content regression is still caught — verified locally both ways:
+a content-identical, byte-different gzip re-encode reports no drift; an
+actually-different-content gzip reports drift). Non-gzip fixture files are
+still compared byte-for-byte.
 
 ---
 

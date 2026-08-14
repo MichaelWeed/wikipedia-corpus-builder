@@ -53,6 +53,12 @@ jobs:
           git diff --exit-code ../schemas
 
       - name: Fixture Regeneration Diff Check
+        # Not a raw `git diff --exit-code`: gzip's compressed byte output
+        # isn't guaranteed identical across zlib versions/platforms for
+        # byte-identical decompressed content -- observed for real in CI,
+        # on this repo's two .sql.gz fixtures, across ubuntu-latest and
+        # macos-latest in the same run (see qa/FINDINGS.md #11).
+        # check_fixture_drift.py decompresses .gz files before comparing.
         run: |
           uv run python tests/fixtures/generator.py
-          git diff --exit-code tests/fixtures/fixwiki
+          uv run python scripts/check_fixture_drift.py
