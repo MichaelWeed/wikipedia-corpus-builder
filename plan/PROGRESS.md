@@ -33,8 +33,8 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P3.2 — 2026-08-13 — OllamaProvider adapter completed
 - [x] P3.3 — 2026-08-13 — LMStudioProvider adapter completed
 - [x] P3.4 — 2026-08-13 — Capability runner & model CLI completed
-- [ ] P3.5 Intent→facets + boundary questions
-- [ ] P3.6 Ambiguous-branch review + decision cache
+- [x] P3.5 — 2026-08-13 — Intent→facets & boundary question folding completed
+- [x] P3.6 — 2026-08-13 — Ambiguous-branch review & decision cache completed
 
 ## P4 Extraction & canonical corpus
 - [ ] P4.1 Job state machine + checkpoint store
