@@ -46,9 +46,11 @@ src-tauri/target/
 
 # CorpusSieve runtime caches and state
 cache/
+scratch/
 *.sqlite
 *.sqlite3
 state.sqlite
+*.log
 
 # IDEs & System
 .DS_Store
