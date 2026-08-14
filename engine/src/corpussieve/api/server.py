@@ -1,14 +1,19 @@
 import json
+import re
 import sys
 from dataclasses import asdict
 from pathlib import Path
 from typing import Any, Literal
 
 from corpussieve import __version__
+from corpussieve.contracts.domain import DomainDefinition, DomainFacets, DomainPolicy, DomainRoot
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
 from corpussieve.contracts.protocol import JsonRpcError, JsonRpcErrorDetail, JsonRpcResponse
-from corpussieve.domain.definition import load_domain
+from corpussieve.domain.definition import load_domain, save_domain
 from corpussieve.domain.lock_build import compile_lock, read_lock, write_lock
+from corpussieve.domain.manifest_io import write_manifest
+from corpussieve.domain.preview import build_preview, explain_page
+from corpussieve.domain.select import select_articles
 from corpussieve.exporters.jsonl import export_jsonl
 from corpussieve.exporters.markdown import export_markdown
 from corpussieve.extraction.build import run_build
@@ -72,9 +77,92 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         with MetadataIndex(db_path) as idx:
             stats = idx.stats()
             lock, _traversal = compile_lock(defn, idx, stats.source_fingerprint)
-            lock_path = p_dir / "domains" / f"{lock.domain_id}.lock.json"
+            # Same dual-write locations as `corpussieve domain compile` (CLI):
+            # next to the YAML, and project_dir/domain.lock.json for the
+            # standard project layout that domain.explain/domain.audit expect.
+            lock_path = domain_file.with_name(f"{domain_file.stem}.lock.json")
             write_lock(lock, lock_path)
+            write_lock(lock, p_dir / "domain.lock.json")
             return lock.model_dump(mode="json")
+
+    elif method == "domain.create":
+        # Desktop-only convenience method: writes project_dir/domain.yaml
+        # directly from the wizard's draft state (name, language, intent,
+        # multiple root categories, a shared max_depth). This is a superset
+        # of the CLI's `domain create` (which writes a single-root template
+        # to project_dir/domains/<id>.yaml); the desktop always targets the
+        # standard project_dir/domain.yaml path that domain.compile/preview/
+        # explain already read and write.
+        p_dir = Path(params.get("project_dir", "")).resolve()
+        p_dir.mkdir(parents=True, exist_ok=True)
+        name = str(params.get("name") or "My Domain")
+        language = str(params.get("language") or "en")
+        intent = str(params.get("intent") or "")
+        raw_roots = params.get("roots") or [name]
+        max_depth = int(params.get("max_depth", 6))
+        include_facets = [str(f) for f in (params.get("facets") or [])]
+
+        slug = re.sub(r"[^a-z0-9-]+", "-", name.strip().lower()).strip("-")
+        slug = re.sub(r"-+", "-", slug) or "domain"
+        if len(slug) < 2:
+            slug = f"{slug}-domain"
+        slug = slug[:63]
+
+        roots: list[DomainRoot] = []
+        for raw in raw_roots:
+            query = str(raw).strip()
+            if not query:
+                continue
+            if not query.lower().startswith("category:"):
+                query = f"Category:{query}"
+            roots.append(DomainRoot(query=query, max_depth=max_depth))
+        if not roots:
+            roots = [DomainRoot(query=f"Category:{name}", max_depth=max_depth)]
+
+        defn = DomainDefinition(
+            id=slug,
+            name=name,
+            description=intent or f"Domain definition for {name}",
+            language=language,
+            policy=DomainPolicy(),
+            facets=DomainFacets(include=include_facets),
+            roots=roots,
+        )
+        domain_path = p_dir / "domain.yaml"
+        save_domain(defn, domain_path)
+        return {"status": "created", "domain_id": defn.id, "domain_path": str(domain_path)}
+
+    elif method == "domain.preview":
+        domain_file = Path(params.get("domain", "")).resolve()
+        p_dir = Path(params.get("project_dir", "")).resolve()
+        defn = load_domain(domain_file)
+        db_path = p_dir / "cache" / "metadata.sqlite"
+        with MetadataIndex(db_path) as idx:
+            stats = idx.stats()
+            lock, traversal = compile_lock(defn, idx, stats.source_fingerprint)
+            records, _ = select_articles(idx, traversal, defn)
+            manifest_path = p_dir / "cache" / "manifest.preview.jsonl.zst"
+            write_manifest(records, manifest_path)
+            preview = build_preview(idx, lock, traversal, records, defn)
+        return preview.model_dump(mode="json")
+
+    elif method == "domain.explain":
+        domain_file = Path(params.get("domain", "")).resolve()
+        p_dir = Path(params.get("project_dir", "")).resolve()
+        page_title = params.get("page_title", "")
+        defn = load_domain(domain_file)
+        db_path = p_dir / "cache" / "metadata.sqlite"
+        lock_path = domain_file.with_name(f"{domain_file.stem}.lock.json")
+        if not lock_path.exists():
+            lock_path = p_dir / "domain.lock.json"
+        lock = read_lock(lock_path)
+        with MetadataIndex(db_path) as idx:
+            stats = idx.stats()
+            traversal = compile_lock(defn, idx, stats.source_fingerprint)[1]
+            records, _ = select_articles(idx, traversal, defn)
+            page_target: str | int = int(page_title) if page_title.isdigit() else page_title
+            explain = explain_page(idx, lock, records, page_target, defn)
+        return explain.model_dump(mode="json")
 
     elif method == "build.start":
         p_dir = Path(params.get("project_dir", "")).resolve()

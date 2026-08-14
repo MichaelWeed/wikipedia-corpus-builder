@@ -111,6 +111,21 @@ export class EngineClient {
     return this.call("domain.boundaryQuestions", { intent, facets });
   }
 
+  async createDomain(
+    projectDir: string,
+    opts: { name: string; language: string; intent?: string; roots: string[]; maxDepth: number; facets?: string[] },
+  ) {
+    return this.call("domain.create", {
+      project_dir: projectDir,
+      name: opts.name,
+      language: opts.language,
+      intent: opts.intent,
+      roots: opts.roots,
+      max_depth: opts.maxDepth,
+      facets: opts.facets,
+    });
+  }
+
   async compileDomain(domainPath: string, projectDir: string) {
     return this.call("domain.compile", { domain: domainPath, project_dir: projectDir });
   }

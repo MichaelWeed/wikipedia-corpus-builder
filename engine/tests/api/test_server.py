@@ -1,10 +1,17 @@
 import json
 import os
+import shutil
 import subprocess
 import sys
 from pathlib import Path
 
 FIXWIKI_DIR = Path(__file__).resolve().parent.parent / "fixtures" / "fixwiki"
+EXAMPLE_DOMAIN = (
+    Path(__file__).resolve().parent.parent.parent.parent
+    / "examples"
+    / "domains"
+    / "video-games.yaml"
+)
 
 
 def test_engine_serve_subprocess_handshake_and_inspect() -> None:
@@ -51,6 +58,138 @@ def test_engine_serve_subprocess_handshake_and_inspect() -> None:
     resp2 = json.loads(line2)
     assert resp2["id"] == 2
     assert resp2["result"]["adapter"] == "wikimedia_xml_dump"
+
+    proc.stdin.close()
+    proc.wait(timeout=5)
+
+
+def test_engine_serve_subprocess_preview_and_explain(tmp_path: Path) -> None:
+    """domain.preview and domain.explain are listed in the desktop client's
+    protocol methods and called by PreviewScreen -- verify the server actually
+    implements them (it previously did not; calls would hit 'Unknown RPC
+    method')."""
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{src_dir}:{env.get('PYTHONPATH', '')}"
+
+    proj_dir = tmp_path / "proj"
+    domain_path = proj_dir / "domain.yaml"
+    proj_dir.mkdir(parents=True)
+    shutil.copy(EXAMPLE_DOMAIN, domain_path)
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "corpussieve.cli.main", "engine", "serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+
+    def call(req_id: int, method: str, params: dict) -> dict:
+        req = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
+        proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
+        proc.stdin.flush()  # type: ignore[union-attr]
+        line = proc.stdout.readline()  # type: ignore[union-attr]
+        if not line:
+            stderr_text = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(f"Engine serve exited/crashed. Stderr:\n{stderr_text}")
+        resp = json.loads(line)
+        assert "error" not in resp or resp["error"] is None, resp.get("error")
+        return resp["result"]
+
+    call(1, "engine.hello", {})
+    call(2, "metadata.build", {"source": str(FIXWIKI_DIR), "project_dir": str(proj_dir)})
+    compile_res = call(
+        3, "domain.compile", {"domain": str(domain_path), "project_dir": str(proj_dir)}
+    )
+    assert len(compile_res["lock_hash"]) > 0
+
+    preview_res = call(
+        4, "domain.preview", {"domain": str(domain_path), "project_dir": str(proj_dir)}
+    )
+    assert preview_res["article_count"] > 0
+    assert preview_res["estimated_output_bytes"] > 0
+
+    explain_res = call(
+        5,
+        "domain.explain",
+        {
+            "domain": str(domain_path),
+            "project_dir": str(proj_dir),
+            "page_title": "Super_Mario_Bros",
+        },
+    )
+    assert explain_res["status"] == "included"
+
+    proc.stdin.close()
+    proc.wait(timeout=5)
+
+
+def test_engine_serve_subprocess_create_compile_preview_flow(tmp_path: Path) -> None:
+    """The exact sequence apps/desktop/src/wizard/DomainScreen.tsx now runs:
+    domain.create (writes project_dir/domain.yaml from wizard draft state,
+    not a pre-existing file) -> domain.compile -> domain.preview. Previously
+    nothing in the desktop wizard ever created domain.yaml, so compile would
+    always fail with 'file does not exist'."""
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{src_dir}:{env.get('PYTHONPATH', '')}"
+
+    proj_dir = tmp_path / "proj"
+    proj_dir.mkdir(parents=True)
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "corpussieve.cli.main", "engine", "serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+
+    def call(req_id: int, method: str, params: dict) -> dict:
+        req = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
+        proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
+        proc.stdin.flush()  # type: ignore[union-attr]
+        line = proc.stdout.readline()  # type: ignore[union-attr]
+        if not line:
+            stderr_text = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(f"Engine serve exited/crashed. Stderr:\n{stderr_text}")
+        resp = json.loads(line)
+        assert "error" not in resp or resp["error"] is None, resp.get("error")
+        return resp["result"]
+
+    call(1, "engine.hello", {})
+    call(2, "metadata.build", {"source": str(FIXWIKI_DIR), "project_dir": str(proj_dir)})
+
+    create_res = call(
+        3,
+        "domain.create",
+        {
+            "project_dir": str(proj_dir),
+            "name": "My Video Games Corpus",
+            "language": "en",
+            "intent": "Keep things related to video games",
+            "roots": ["Video_games"],  # no "Category:" prefix, as the desktop UI collects it
+            "max_depth": 6,
+            "facets": [],
+        },
+    )
+    assert create_res["status"] == "created"
+    domain_path = create_res["domain_path"]
+    assert domain_path == str(proj_dir / "domain.yaml")
+    assert Path(domain_path).exists()
+
+    compile_res = call(4, "domain.compile", {"domain": domain_path, "project_dir": str(proj_dir)})
+    assert len(compile_res["lock_hash"]) > 0
+
+    preview_res = call(5, "domain.preview", {"domain": domain_path, "project_dir": str(proj_dir)})
+    assert preview_res["article_count"] > 0
 
     proc.stdin.close()
     proc.wait(timeout=5)

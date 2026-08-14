@@ -23,4 +23,17 @@ describe("useWizardStore", () => {
     store.addLog("Log entry 2");
     expect(useWizardStore.getState().logs).toEqual(["Log entry 1", "Log entry 2"]);
   });
+
+  it("tracks domainPath separately from domainLockPath", () => {
+    const store = useWizardStore.getState();
+    expect(store.domainPath).toBe("");
+    expect(store.domainLockPath).toBe("");
+
+    store.setDomainPath("/tmp/proj/domain.yaml");
+    store.setDomainLockPath("/tmp/proj/domain.lock.json");
+
+    const state = useWizardStore.getState();
+    expect(state.domainPath).toBe("/tmp/proj/domain.yaml");
+    expect(state.domainLockPath).toBe("/tmp/proj/domain.lock.json");
+  });
 });

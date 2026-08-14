@@ -259,6 +259,50 @@ fixtures (e.g. from this exact `Pizza_Tower` or `Nightmare_of_Druaga` case) to
 
 ---
 
+## 10. HIGH (functionality) — Most of the desktop wizard is not wired to the engine
+
+**Discovered** while fixing finding #1 and wiring `PreviewScreen`/`DomainScreen`
+to real data (2026-08-14): `apps/desktop/src/engine/client.ts` lists 29
+protocol methods and every desktop screen calls several of them, but
+`engine/src/corpussieve/api/server.py`'s dispatch table only implemented 8 —
+any call to an unimplemented method fails with `"Unknown RPC method"`. This
+pass fixed 3 (`domain.preview`, `domain.explain`, `domain.create`, see
+finding #1's commit and P6.1/P6.5 in PROGRESS.md). **The following remain
+unimplemented server-side and are confirmed broken when called:**
+
+| Screen | Calls | Server status |
+|---|---|---|
+| `ModelScreen.tsx` | `model.detect`, `model.test` (also `model.add`, `model.list` elsewhere in the client) | **Not implemented.** "Connect AI" step cannot detect or test any provider. Non-blocking: this step is optional/skippable (design FR-007 manual path), and failures are caught and logged rather than crashing the app. |
+| `BuildScreen.tsx` | `build.cancel` | **Not implemented.** The Cancel button sends an RPC that errors; the build keeps running. |
+| `BuildScreen.tsx` progress bar | *(none — hardcoded)* | The progress bar is not connected to anything. It jumps to a hardcoded 10% on start and 100% when the build promise resolves — it does not reflect real build stages. `job.subscribe` (for live `event/progress` notifications, which the engine already emits internally during real builds) is also unimplemented server-side, so even if the bar were wired to events, there's nothing to subscribe to yet. On a 25 GB dump this is materially misleading: the UI will sit at a static 10% for however long the real extraction takes, then snap to 100%. |
+| `DomainScreen.tsx` "Propose Facets with AI" | `domain.proposeFacets` | **Not implemented.** Also unimplemented: `domain.boundaryQuestions`, `domain.applyAnswers`, `domain.resolveReviews` — the entire LLM-assisted domain-compilation flow (design §7.1 steps 4–6) that P3 built for the CLI has no desktop entry point. |
+| *(none currently)* | `project.create`, `project.open`, `project.get` | Not implemented, but also not currently called by any screen — `ProjectScreen.tsx` only sets local wizard state. Not a live bug, just unused protocol surface. |
+
+**What does work end-to-end today** (verified by this session's protocol
+tests and manual runs): `source.inspect`, `metadata.build`,
+`domain.create`/`domain.compile`/`domain.preview`/`domain.explain`,
+`build.start`, `corpus.validate`, `export.markdown`/`export.jsonl`,
+`purge.plan`/`purge.confirm`. That covers the manual (no-LLM) path from
+"pick a source" through "export a corpus" — which is the path a first-time
+user following the CLI-equivalent flow would take.
+
+**Not fixed in this pass** — this is effectively the remaining scope of P6.4
+(model screen) and P6.6 (build progress/cancel), plus the desktop half of P3
+(LLM-assisted compilation), not a small bug. Flagging precisely rather than
+silently leaving PROGRESS.md's existing `[x]` marks uncorrected or attempting
+a partial fix; see PROGRESS.md for the corrected P6.4/P6.6 notes.
+
+Additionally, `SourceScreen.tsx` reads `sourceInspection.project`,
+`.language`, `.kind`, and `.companion_missing` — none of which exist on the
+real `SourceInspection` response (the real fields are
+`fingerprint.project`/`fingerprint.language`, `dump_kind`, and per-field
+`has_*` booleans/`warnings`). This doesn't error — the `||` fallbacks quietly
+render generic defaults (`"Wikimedia"`, `"en"`, `"multistream"`) instead of
+the actual detected values — so it's LOW severity (cosmetic, not a crash),
+but worth a fix alongside the above.
+
+---
+
 ## Clean results (verified, no action needed)
 
 - **SQL injection:** none. Every `execute()` is parameterized; no f-string or

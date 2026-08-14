@@ -35,4 +35,45 @@ describe("EngineClient", () => {
       resume: false,
     });
   });
+
+  it("passes correct arguments for createDomain", async () => {
+    const handler = vi.fn().mockResolvedValue({ status: "created", domain_id: "my-wiki", domain_path: "/proj/domain.yaml" });
+    const client = new EngineClient(handler);
+
+    await client.createDomain("/proj", {
+      name: "My Wiki",
+      language: "en",
+      intent: "Keep video games",
+      roots: ["Video_games", "Category:Esports"],
+      maxDepth: 6,
+      facets: ["gaming"],
+    });
+    expect(handler).toHaveBeenCalledWith("domain.create", {
+      project_dir: "/proj",
+      name: "My Wiki",
+      language: "en",
+      intent: "Keep video games",
+      roots: ["Video_games", "Category:Esports"],
+      max_depth: 6,
+      facets: ["gaming"],
+    });
+  });
+
+  it("passes correct arguments for previewDomain and explainDomain", async () => {
+    const handler = vi.fn().mockResolvedValue({});
+    const client = new EngineClient(handler);
+
+    await client.previewDomain("/proj/domain.yaml", "/proj");
+    expect(handler).toHaveBeenCalledWith("domain.preview", {
+      domain: "/proj/domain.yaml",
+      project_dir: "/proj",
+    });
+
+    await client.explainDomain("/proj/domain.yaml", "/proj", "Some_Article");
+    expect(handler).toHaveBeenCalledWith("domain.explain", {
+      domain: "/proj/domain.yaml",
+      project_dir: "/proj",
+      page_title: "Some_Article",
+    });
+  });
 });

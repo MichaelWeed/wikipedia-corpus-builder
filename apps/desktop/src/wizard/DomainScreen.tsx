@@ -8,7 +8,7 @@ interface DomainScreenProps {
 }
 
 export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
-  const { domainDraft, projectDir, modelConfig, setDomainDraft, setDomainLockPath, setStep, addLog } = useWizardStore();
+  const { domainDraft, projectDir, projectName, modelConfig, setDomainDraft, setDomainPath, setDomainLockPath, setStep, addLog } = useWizardStore();
   const [loading, setLoading] = useState(false);
 
   const handleProposeFacets = async () => {
@@ -29,11 +29,25 @@ export const DomainScreen: React.FC<DomainScreenProps> = ({ client }) => {
   };
 
   const handleCompile = async () => {
-    if (!projectDir.trim()) return;
+    if (!projectDir.trim() || domainDraft.rootCategories.length === 0) return;
     setLoading(true);
     try {
+      addLog(`Writing domain definition for "${projectName}"...`);
+      // Desktop defaults to English; a full language picker isn't wired yet
+      // (see design's source-filename-inferred / manual language selection).
+      const created = await client.createDomain(projectDir, {
+        name: projectName,
+        language: "en",
+        intent: domainDraft.intent,
+        roots: domainDraft.rootCategories,
+        maxDepth: domainDraft.depth,
+        facets: domainDraft.facets,
+      });
+      addLog(`Domain written: ${JSON.stringify(created)}`);
+
       addLog(`Compiling domain lock in ${projectDir}...`);
       const domainFile = `${projectDir}/domain.yaml`;
+      setDomainPath(domainFile);
       const res = await client.compileDomain(domainFile, projectDir);
       const lockPath = `${projectDir}/domain.lock.json`;
       setDomainLockPath(lockPath);

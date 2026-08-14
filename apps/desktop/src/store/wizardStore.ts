@@ -31,6 +31,7 @@ export interface WizardState {
   metadataBuilt: boolean;
   modelConfig: ModelConfig;
   domainDraft: DomainDraft;
+  domainPath: string;
   domainLockPath: string;
   previewData: any;
   buildJobId: string | null;
@@ -44,6 +45,7 @@ export interface WizardState {
   setMetadataBuilt: (built: boolean) => void;
   setModelConfig: (config: Partial<ModelConfig>) => void;
   setDomainDraft: (draft: Partial<DomainDraft>) => void;
+  setDomainPath: (path: string) => void;
   setDomainLockPath: (path: string) => void;
   setPreviewData: (data: any) => void;
   setBuildJobId: (id: string | null) => void;
@@ -74,6 +76,7 @@ export const useWizardStore = create<WizardState>((set) => ({
     rootCategories: ["Video_games"],
     depth: 6,
   },
+  domainPath: "",
   domainLockPath: "",
   previewData: null,
   buildJobId: null,
@@ -89,6 +92,7 @@ export const useWizardStore = create<WizardState>((set) => ({
     set((state) => ({ modelConfig: { ...state.modelConfig, ...config } })),
   setDomainDraft: (draft) =>
     set((state) => ({ domainDraft: { ...state.domainDraft, ...draft } })),
+  setDomainPath: (path) => set({ domainPath: path }),
   setDomainLockPath: (path) => set({ domainLockPath: path }),
   setPreviewData: (data) => set({ previewData: data }),
   setBuildJobId: (id) => set({ buildJobId: id }),
