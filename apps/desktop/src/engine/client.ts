@@ -99,6 +99,14 @@ export class EngineClient {
     return this.call("model.detect");
   }
 
+  async addModel(url: string, provider?: string) {
+    return this.call("model.add", { url, provider });
+  }
+
+  async listModels() {
+    return this.call("model.list");
+  }
+
   async testModel(provider: string, endpoint: string, modelName: string) {
     return this.call("model.test", { provider, endpoint, model: modelName });
   }

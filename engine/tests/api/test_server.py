@@ -193,3 +193,61 @@ def test_engine_serve_subprocess_create_compile_preview_flow(tmp_path: Path) -> 
 
     proc.stdin.close()
     proc.wait(timeout=5)
+
+
+def test_engine_serve_subprocess_model_methods(tmp_path: Path) -> None:
+    """Subprocess protocol test for model.detect, model.add, model.list, model.test."""
+    src_dir = Path(__file__).resolve().parent.parent.parent / "src"
+    env = os.environ.copy()
+    env["PYTHONPATH"] = f"{src_dir}:{env.get('PYTHONPATH', '')}"
+    env["CORPUSSIEVE_CONFIG_DIR"] = str(tmp_path / "config")
+
+    proc = subprocess.Popen(
+        [sys.executable, "-m", "corpussieve.cli.main", "engine", "serve"],
+        stdin=subprocess.PIPE,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        text=True,
+        env=env,
+    )
+    assert proc.stdin is not None
+    assert proc.stdout is not None
+
+    def call(req_id: int, method: str, params: dict) -> dict:
+        req = {"jsonrpc": "2.0", "id": req_id, "method": method, "params": params}
+        proc.stdin.write(json.dumps(req) + "\n")  # type: ignore[union-attr]
+        proc.stdin.flush()  # type: ignore[union-attr]
+        line = proc.stdout.readline()  # type: ignore[union-attr]
+        if not line:
+            stderr_text = proc.stderr.read() if proc.stderr else ""
+            raise RuntimeError(f"Engine serve exited/crashed. Stderr:\n{stderr_text}")
+        resp = json.loads(line)
+        assert "error" not in resp or resp["error"] is None, resp.get("error")
+        return resp["result"]
+
+    call(1, "engine.hello", {})
+
+    detect_res = call(2, "model.detect", {})
+    assert isinstance(detect_res, list)
+
+    add_res = call(3, "model.add", {"url": "http://127.0.0.1:11434", "provider": "ollama"})
+    assert add_res["status"] == "added"
+    assert add_res["base_url"] == "http://127.0.0.1:11434"
+
+    list_res = call(4, "model.list", {})
+    assert isinstance(list_res, list)
+
+    # model.test against unconfigured/offline endpoint will return cap result
+    test_res = call(
+        5,
+        "model.test",
+        {
+            "provider": "ollama",
+            "endpoint": "http://127.0.0.1:11434",
+            "model": "llama3",
+        },
+    )
+    assert "status" in test_res or "model_id" in test_res
+
+    proc.stdin.close()
+    proc.wait(timeout=5)

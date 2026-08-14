@@ -9,6 +9,7 @@ from corpussieve import __version__
 from corpussieve.contracts.domain import DomainDefinition, DomainFacets, DomainPolicy, DomainRoot
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
 from corpussieve.contracts.protocol import JsonRpcError, JsonRpcErrorDetail, JsonRpcResponse
+from corpussieve.contracts.providers import ProviderEndpoint
 from corpussieve.domain.definition import load_domain, save_domain
 from corpussieve.domain.lock_build import compile_lock, read_lock, write_lock
 from corpussieve.domain.manifest_io import write_manifest
@@ -19,6 +20,12 @@ from corpussieve.exporters.markdown import export_markdown
 from corpussieve.extraction.build import run_build
 from corpussieve.metadata.build import build_metadata_index
 from corpussieve.metadata.queries import MetadataIndex
+from corpussieve.models.capability import run_capability_test
+from corpussieve.models.config import (
+    load_configured_endpoints,
+    save_configured_endpoints,
+)
+from corpussieve.models.registry import detect_all, provider_for
 from corpussieve.safety.preconditions import check_purge_preconditions
 from corpussieve.safety.purge import execute_purge
 from corpussieve.sources.wikimedia.adapter import WikimediaXmlDumpAdapter
@@ -68,6 +75,119 @@ def dispatch_method(method: str, params: dict[str, Any]) -> Any:  # noqa: C901
         with MetadataIndex(db_path) as idx:
             res_hits = idx.search_categories(query, limit=limit)
             return [asdict(r) for r in res_hits]
+
+    elif method == "model.detect":
+        endpoints = detect_all()
+        results: list[dict[str, Any]] = []
+        for ep in endpoints:
+            try:
+                p = provider_for(ep)
+                models = p.list_models()
+                results.append(
+                    {
+                        "provider": ep.provider,
+                        "base_url": ep.base_url,
+                        "is_loopback": ep.is_loopback,
+                        "reachable": True,
+                        "model_count": len(models),
+                    }
+                )
+            except Exception as e:
+                results.append(
+                    {
+                        "provider": ep.provider,
+                        "base_url": ep.base_url,
+                        "is_loopback": ep.is_loopback,
+                        "reachable": False,
+                        "error": str(e),
+                    }
+                )
+        return results
+
+    elif method == "model.add":
+        url = str(params.get("url") or params.get("base_url") or "")
+        prov_arg = params.get("provider")
+        is_loop = "127.0.0.1" in url or "localhost" in url
+        prov_type = prov_arg or ("ollama" if "11434" in url else "lmstudio")
+        ep = ProviderEndpoint(
+            provider="ollama" if prov_type == "ollama" else "lmstudio",
+            base_url=url,
+            is_loopback=is_loop,
+        )
+        existing = load_configured_endpoints()
+        filtered = [e for e in existing if e.base_url != url]
+        filtered.append(ep)
+        save_configured_endpoints(filtered)
+        return {
+            "status": "added",
+            "provider": ep.provider,
+            "base_url": ep.base_url,
+            "is_loopback": ep.is_loopback,
+        }
+
+    elif method == "model.list":
+        endpoints = load_configured_endpoints()
+        if not endpoints:
+            endpoints = detect_all()
+        all_models: list[dict[str, Any]] = []
+        for ep in endpoints:
+            try:
+                p = provider_for(ep)
+                models = p.list_models()
+                for mod_info in models:
+                    all_models.append(
+                        {
+                            "provider": ep.provider,
+                            "base_url": ep.base_url,
+                            "model_id": mod_info.model_id,
+                            "loaded": mod_info.loaded,
+                            "model_type": mod_info.model_type,
+                            "capability": mod_info.capability_result,
+                        }
+                    )
+            except Exception as e:
+                all_models.append(
+                    {
+                        "provider": ep.provider,
+                        "base_url": ep.base_url,
+                        "error": str(e),
+                    }
+                )
+        return all_models
+
+    elif method == "model.test":
+        model_id = str(params.get("model") or params.get("model_id") or "")
+        endpoint_url = params.get("endpoint") or params.get("base_url")
+        prov_req = params.get("provider")
+        endpoints = load_configured_endpoints() or detect_all()
+        target_ep = None
+        if endpoint_url:
+            target_ep = next((e for e in endpoints if e.base_url == endpoint_url), None)
+            if not target_ep:
+                prov_name = prov_req or ("ollama" if "11434" in str(endpoint_url) else "lmstudio")
+                target_ep = ProviderEndpoint(
+                    provider="ollama" if prov_name == "ollama" else "lmstudio",
+                    base_url=str(endpoint_url),
+                    is_loopback="127.0.0.1" in str(endpoint_url)
+                    or "localhost" in str(endpoint_url),
+                )
+        if not target_ep and endpoints:
+            target_ep = endpoints[0]
+        if not target_ep:
+            prov_kind: Literal["ollama", "lmstudio"] = (
+                "ollama" if prov_req == "ollama" else "lmstudio"
+            )
+            base = endpoint_url or (
+                "http://127.0.0.1:11434" if prov_kind == "ollama" else "http://127.0.0.1:1234"
+            )
+            target_ep = ProviderEndpoint(
+                provider=prov_kind,
+                base_url=str(base),
+                is_loopback="127.0.0.1" in str(base) or "localhost" in str(base),
+            )
+        p = provider_for(target_ep)
+        cap = run_capability_test(p, model_id)
+        return cap.model_dump(mode="json")
 
     elif method == "domain.compile":
         domain_file = Path(params.get("domain", "")).resolve()

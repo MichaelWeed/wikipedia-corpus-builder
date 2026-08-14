@@ -1,4 +1,5 @@
 import contextlib
+import os
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,10 @@ KEYRING_SERVICE = "corpussieve"
 
 def get_config_dir() -> Path:
     """Return user configuration directory for CorpusSieve."""
-    d = Path(platformdirs.user_config_dir("corpussieve"))
+    if "CORPUSSIEVE_CONFIG_DIR" in os.environ:
+        d = Path(os.environ["CORPUSSIEVE_CONFIG_DIR"])
+    else:
+        d = Path(platformdirs.user_config_dir("corpussieve"))
     d.mkdir(parents=True, exist_ok=True)
     return d
 

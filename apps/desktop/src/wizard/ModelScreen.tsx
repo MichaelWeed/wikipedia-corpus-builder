@@ -64,9 +64,9 @@ export const ModelScreen: React.FC<ModelScreenProps> = ({ client }) => {
           <h3>Detected AI Providers</h3>
           {detected.map((m: any, i: number) => (
             <div key={i} style={{ display: "flex", justifyContent: "space-between", padding: "0.5rem 0" }}>
-              <span>{m.provider} — {m.model} ({m.endpoint})</span>
+              <span>{m.provider} — {m.model_id || m.model || "default"} ({m.base_url || m.endpoint})</span>
               <button
-                onClick={() => setModelConfig({ provider: m.provider, endpoint: m.endpoint, modelName: m.model })}
+                onClick={() => setModelConfig({ provider: m.provider, endpoint: m.base_url || m.endpoint, modelName: m.model_id || m.model })}
                 style={{ padding: "0.25rem 0.5rem" }}
               >
                 Use Model
