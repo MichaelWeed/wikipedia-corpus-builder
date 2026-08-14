@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "completed_units": {
+      "title": "Completed Units",
+      "type": "integer"
+    },
+    "job_id": {
+      "title": "Job Id",
+      "type": "string"
+    },
+    "message": {
+      "title": "Message",
+      "type": "string"
+    },
+    "stage": {
+      "title": "Stage",
+      "type": "string"
+    },
+    "total_units": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Total Units"
+    }
+  },
+  "required": [
+    "job_id",
+    "stage",
+    "completed_units",
+    "message"
+  ],
+  "title": "ProgressEvent",
+  "type": "object"
+}

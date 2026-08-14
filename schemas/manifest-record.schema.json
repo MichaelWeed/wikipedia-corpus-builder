@@ -1,0 +1,120 @@
+{
+  "$defs": {
+    "SelectionReason": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "title": "Depth",
+          "type": "integer"
+        },
+        "reason_type": {
+          "enum": [
+            "category_path",
+            "forced_include"
+          ],
+          "title": "Reason Type",
+          "type": "string"
+        },
+        "root": {
+          "title": "Root",
+          "type": "string"
+        },
+        "via_category": {
+          "title": "Via Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "root",
+        "depth",
+        "via_category",
+        "reason_type"
+      ],
+      "title": "SelectionReason",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "content_hash": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Content Hash"
+    },
+    "document_id": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Document Id"
+    },
+    "language": {
+      "title": "Language",
+      "type": "string"
+    },
+    "namespace": {
+      "title": "Namespace",
+      "type": "integer"
+    },
+    "page_id": {
+      "title": "Page Id",
+      "type": "integer"
+    },
+    "project": {
+      "title": "Project",
+      "type": "string"
+    },
+    "revision_id": {
+      "anyOf": [
+        {
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Revision Id"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "selected": {
+      "title": "Selected",
+      "type": "boolean"
+    },
+    "selection": {
+      "$ref": "#/$defs/SelectionReason"
+    },
+    "title": {
+      "title": "Title",
+      "type": "string"
+    }
+  },
+  "required": [
+    "project",
+    "language",
+    "page_id",
+    "title",
+    "namespace",
+    "selected",
+    "selection"
+  ],
+  "title": "ManifestRecord",
+  "type": "object"
+}

@@ -1,0 +1,172 @@
+{
+  "$defs": {
+    "CategoryTotals": {
+      "additionalProperties": false,
+      "properties": {
+        "excluded": {
+          "title": "Excluded",
+          "type": "integer"
+        },
+        "included": {
+          "title": "Included",
+          "type": "integer"
+        },
+        "reviewed": {
+          "title": "Reviewed",
+          "type": "integer"
+        },
+        "traversed": {
+          "title": "Traversed",
+          "type": "integer"
+        }
+      },
+      "required": [
+        "traversed",
+        "included",
+        "excluded",
+        "reviewed"
+      ],
+      "title": "CategoryTotals",
+      "type": "object"
+    },
+    "ReportSamples": {
+      "additionalProperties": false,
+      "properties": {
+        "borderline": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Borderline",
+          "type": "array"
+        },
+        "included": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Included",
+          "type": "array"
+        }
+      },
+      "required": [
+        "included",
+        "borderline"
+      ],
+      "title": "ReportSamples",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "category_totals": {
+      "$ref": "#/$defs/CategoryTotals"
+    },
+    "corpussieve_version": {
+      "title": "Corpussieve Version",
+      "type": "string"
+    },
+    "counts_by_depth": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Counts By Depth",
+      "type": "object"
+    },
+    "counts_by_root": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Counts By Root",
+      "type": "object"
+    },
+    "domain_hash": {
+      "title": "Domain Hash",
+      "type": "string"
+    },
+    "extraction_count": {
+      "title": "Extraction Count",
+      "type": "integer"
+    },
+    "forced_counts": {
+      "additionalProperties": {
+        "type": "integer"
+      },
+      "title": "Forced Counts",
+      "type": "object"
+    },
+    "lock_hash": {
+      "title": "Lock Hash",
+      "type": "string"
+    },
+    "model_info": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Model Info"
+    },
+    "normalization_errors": {
+      "title": "Normalization Errors",
+      "type": "integer"
+    },
+    "output_bytes": {
+      "title": "Output Bytes",
+      "type": "integer"
+    },
+    "purge_eligible": {
+      "title": "Purge Eligible",
+      "type": "boolean"
+    },
+    "samples": {
+      "$ref": "#/$defs/ReportSamples"
+    },
+    "selected_articles": {
+      "title": "Selected Articles",
+      "type": "integer"
+    },
+    "source_fingerprint": {
+      "title": "Source Fingerprint",
+      "type": "string"
+    },
+    "validation": {
+      "enum": [
+        "PASSED",
+        "FAILED",
+        "NOT_RUN"
+      ],
+      "title": "Validation",
+      "type": "string"
+    },
+    "warnings": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings",
+      "type": "array"
+    }
+  },
+  "required": [
+    "source_fingerprint",
+    "corpussieve_version",
+    "domain_hash",
+    "lock_hash",
+    "category_totals",
+    "selected_articles",
+    "counts_by_root",
+    "counts_by_depth",
+    "forced_counts",
+    "warnings",
+    "samples",
+    "extraction_count",
+    "normalization_errors",
+    "output_bytes",
+    "validation",
+    "purge_eligible"
+  ],
+  "title": "BuildReport",
+  "type": "object"
+}

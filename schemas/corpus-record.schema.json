@@ -1,0 +1,140 @@
+{
+  "$defs": {
+    "CorpusContent": {
+      "additionalProperties": false,
+      "properties": {
+        "format": {
+          "const": "wikitext",
+          "default": "wikitext",
+          "title": "Format",
+          "type": "string"
+        },
+        "raw": {
+          "title": "Raw",
+          "type": "string"
+        }
+      },
+      "required": [
+        "raw"
+      ],
+      "title": "CorpusContent",
+      "type": "object"
+    },
+    "CorpusSource": {
+      "additionalProperties": false,
+      "properties": {
+        "dump_date": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Dump Date"
+        },
+        "language": {
+          "title": "Language",
+          "type": "string"
+        },
+        "page_id": {
+          "title": "Page Id",
+          "type": "integer"
+        },
+        "project": {
+          "title": "Project",
+          "type": "string"
+        },
+        "revision_id": {
+          "title": "Revision Id",
+          "type": "integer"
+        },
+        "source_url": {
+          "title": "Source Url",
+          "type": "string"
+        },
+        "title": {
+          "title": "Title",
+          "type": "string"
+        }
+      },
+      "required": [
+        "project",
+        "language",
+        "page_id",
+        "revision_id",
+        "title",
+        "source_url"
+      ],
+      "title": "CorpusSource",
+      "type": "object"
+    },
+    "SelectionReason": {
+      "additionalProperties": false,
+      "properties": {
+        "depth": {
+          "title": "Depth",
+          "type": "integer"
+        },
+        "reason_type": {
+          "enum": [
+            "category_path",
+            "forced_include"
+          ],
+          "title": "Reason Type",
+          "type": "string"
+        },
+        "root": {
+          "title": "Root",
+          "type": "string"
+        },
+        "via_category": {
+          "title": "Via Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "root",
+        "depth",
+        "via_category",
+        "reason_type"
+      ],
+      "title": "SelectionReason",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "categories": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Categories",
+      "type": "array"
+    },
+    "content": {
+      "$ref": "#/$defs/CorpusContent"
+    },
+    "document_id": {
+      "title": "Document Id",
+      "type": "string"
+    },
+    "selection": {
+      "$ref": "#/$defs/SelectionReason"
+    },
+    "source": {
+      "$ref": "#/$defs/CorpusSource"
+    }
+  },
+  "required": [
+    "document_id",
+    "source",
+    "categories",
+    "selection",
+    "content"
+  ],
+  "title": "CorpusRecord",
+  "type": "object"
+}

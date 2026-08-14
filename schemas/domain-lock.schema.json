@@ -1,0 +1,229 @@
+{
+  "$defs": {
+    "BranchDecision": {
+      "enum": [
+        "include",
+        "exclude",
+        "review"
+      ],
+      "title": "BranchDecision",
+      "type": "string"
+    },
+    "CategoryDecision": {
+      "additionalProperties": false,
+      "properties": {
+        "category": {
+          "title": "Category",
+          "type": "string"
+        },
+        "confidence": {
+          "anyOf": [
+            {
+              "maximum": 1.0,
+              "minimum": 0.0,
+              "type": "number"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Confidence"
+        },
+        "decision": {
+          "$ref": "#/$defs/BranchDecision"
+        },
+        "depth": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Depth"
+        },
+        "reason": {
+          "title": "Reason",
+          "type": "string"
+        },
+        "root": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Root"
+        },
+        "source": {
+          "enum": [
+            "traversal",
+            "facet_exclude",
+            "llm",
+            "human"
+          ],
+          "title": "Source",
+          "type": "string"
+        }
+      },
+      "required": [
+        "category",
+        "decision",
+        "source",
+        "reason"
+      ],
+      "title": "CategoryDecision",
+      "type": "object"
+    },
+    "LlmProvenance": {
+      "additionalProperties": false,
+      "properties": {
+        "model_id": {
+          "title": "Model Id",
+          "type": "string"
+        },
+        "prompt_version": {
+          "title": "Prompt Version",
+          "type": "string"
+        },
+        "provider": {
+          "title": "Provider",
+          "type": "string"
+        },
+        "schema_version": {
+          "title": "Schema Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "provider",
+        "model_id",
+        "prompt_version",
+        "schema_version"
+      ],
+      "title": "LlmProvenance",
+      "type": "object"
+    },
+    "ResolvedRoot": {
+      "additionalProperties": false,
+      "properties": {
+        "max_depth": {
+          "title": "Max Depth",
+          "type": "integer"
+        },
+        "query": {
+          "title": "Query",
+          "type": "string"
+        },
+        "resolved_category": {
+          "title": "Resolved Category",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query",
+        "resolved_category",
+        "max_depth"
+      ],
+      "title": "ResolvedRoot",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "category_decisions": {
+      "items": {
+        "$ref": "#/$defs/CategoryDecision"
+      },
+      "title": "Category Decisions",
+      "type": "array"
+    },
+    "compiled_at": {
+      "title": "Compiled At",
+      "type": "string"
+    },
+    "compiler_version": {
+      "title": "Compiler Version",
+      "type": "string"
+    },
+    "domain_hash": {
+      "title": "Domain Hash",
+      "type": "string"
+    },
+    "domain_id": {
+      "title": "Domain Id",
+      "type": "string"
+    },
+    "forced_include_pages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Forced Include Pages",
+      "type": "array"
+    },
+    "hard_exclude_pages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Hard Exclude Pages",
+      "type": "array"
+    },
+    "llm": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/LlmProvenance"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "lock_hash": {
+      "title": "Lock Hash",
+      "type": "string"
+    },
+    "resolved_roots": {
+      "items": {
+        "$ref": "#/$defs/ResolvedRoot"
+      },
+      "title": "Resolved Roots",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_fingerprint": {
+      "title": "Source Fingerprint",
+      "type": "string"
+    },
+    "warnings_acknowledged": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Warnings Acknowledged",
+      "type": "array"
+    }
+  },
+  "required": [
+    "domain_id",
+    "domain_hash",
+    "source_fingerprint",
+    "resolved_roots",
+    "category_decisions",
+    "compiler_version",
+    "compiled_at",
+    "lock_hash"
+  ],
+  "title": "DomainLock",
+  "type": "object"
+}

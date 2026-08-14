@@ -1,0 +1,162 @@
+{
+  "$defs": {
+    "AmbiguousBranchPolicy": {
+      "enum": [
+        "include",
+        "exclude",
+        "review"
+      ],
+      "title": "AmbiguousBranchPolicy",
+      "type": "string"
+    },
+    "DomainFacets": {
+      "additionalProperties": false,
+      "properties": {
+        "exclude": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Exclude",
+          "type": "array"
+        },
+        "include": {
+          "items": {
+            "type": "string"
+          },
+          "title": "Include",
+          "type": "array"
+        }
+      },
+      "title": "DomainFacets",
+      "type": "object"
+    },
+    "DomainPolicy": {
+      "additionalProperties": false,
+      "properties": {
+        "ambiguous_branch": {
+          "$ref": "#/$defs/AmbiguousBranchPolicy",
+          "default": "review"
+        },
+        "include_redirects": {
+          "default": false,
+          "title": "Include Redirects",
+          "type": "boolean"
+        },
+        "max_total_articles": {
+          "default": 2000000,
+          "title": "Max Total Articles",
+          "type": "integer"
+        },
+        "max_total_categories": {
+          "default": 100000,
+          "title": "Max Total Categories",
+          "type": "integer"
+        },
+        "mode": {
+          "$ref": "#/$defs/SelectionMode",
+          "default": "balanced"
+        }
+      },
+      "title": "DomainPolicy",
+      "type": "object"
+    },
+    "DomainRoot": {
+      "additionalProperties": false,
+      "properties": {
+        "max_depth": {
+          "default": 6,
+          "title": "Max Depth",
+          "type": "integer"
+        },
+        "query": {
+          "title": "Query",
+          "type": "string"
+        }
+      },
+      "required": [
+        "query"
+      ],
+      "title": "DomainRoot",
+      "type": "object"
+    },
+    "SelectionMode": {
+      "enum": [
+        "high_recall",
+        "balanced",
+        "high_precision"
+      ],
+      "title": "SelectionMode",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "description": {
+      "title": "Description",
+      "type": "string"
+    },
+    "exclude_categories": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Exclude Categories",
+      "type": "array"
+    },
+    "facets": {
+      "$ref": "#/$defs/DomainFacets"
+    },
+    "forced_include_pages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Forced Include Pages",
+      "type": "array"
+    },
+    "hard_exclude_pages": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Hard Exclude Pages",
+      "type": "array"
+    },
+    "id": {
+      "pattern": "^[a-z0-9][a-z0-9-]{1,62}$",
+      "title": "Id",
+      "type": "string"
+    },
+    "language": {
+      "title": "Language",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "policy": {
+      "$ref": "#/$defs/DomainPolicy"
+    },
+    "roots": {
+      "items": {
+        "$ref": "#/$defs/DomainRoot"
+      },
+      "minItems": 1,
+      "title": "Roots",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "id",
+    "name",
+    "description",
+    "language",
+    "roots"
+  ],
+  "title": "DomainDefinition",
+  "type": "object"
+}

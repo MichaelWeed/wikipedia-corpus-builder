@@ -1,0 +1,41 @@
+{
+  "$defs": {
+    "BranchDecision": {
+      "enum": [
+        "include",
+        "exclude",
+        "review"
+      ],
+      "title": "BranchDecision",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "confidence": {
+      "maximum": 1.0,
+      "minimum": 0.0,
+      "title": "Confidence",
+      "type": "number"
+    },
+    "decision": {
+      "$ref": "#/$defs/BranchDecision"
+    },
+    "needs_human_review": {
+      "title": "Needs Human Review",
+      "type": "boolean"
+    },
+    "reason": {
+      "title": "Reason",
+      "type": "string"
+    }
+  },
+  "required": [
+    "decision",
+    "confidence",
+    "reason",
+    "needs_human_review"
+  ],
+  "title": "BranchReviewResult",
+  "type": "object"
+}

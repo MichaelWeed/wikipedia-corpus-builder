@@ -1,0 +1,110 @@
+{
+  "$defs": {
+    "JobState": {
+      "enum": [
+        "NEW",
+        "SOURCE_INSPECTED",
+        "METADATA_INDEXING",
+        "METADATA_READY",
+        "DOMAIN_DRAFT",
+        "DOMAIN_COMPILED",
+        "PREVIEWED",
+        "BUILDING",
+        "BUILD_SUCCEEDED",
+        "VALIDATING",
+        "VALIDATED",
+        "EXPORTED",
+        "SOURCE_PURGED",
+        "FAILED",
+        "CANCELLED"
+      ],
+      "title": "JobState",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "CorpusSieve project configuration file contract.\n\nCRITICAL INVARIANT (Design \u00a721):\nNo API keys, access tokens, or credentials may EVER be stored in project.yaml.\nTokens must be stored strictly in system keyring via keyring references.",
+  "properties": {
+    "created_at": {
+      "title": "Created At",
+      "type": "string"
+    },
+    "domain_path": {
+      "title": "Domain Path",
+      "type": "string"
+    },
+    "job_state": {
+      "$ref": "#/$defs/JobState",
+      "default": "NEW"
+    },
+    "lock_path": {
+      "title": "Lock Path",
+      "type": "string"
+    },
+    "name": {
+      "title": "Name",
+      "type": "string"
+    },
+    "output_dir": {
+      "title": "Output Dir",
+      "type": "string"
+    },
+    "project_id": {
+      "title": "Project Id",
+      "type": "string"
+    },
+    "provider_ref": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Provider Ref"
+    },
+    "schema_version": {
+      "const": 1,
+      "default": 1,
+      "title": "Schema Version",
+      "type": "integer"
+    },
+    "source_adapter": {
+      "title": "Source Adapter",
+      "type": "string"
+    },
+    "source_fingerprint": {
+      "anyOf": [
+        {
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Fingerprint"
+    },
+    "source_paths": {
+      "items": {
+        "type": "string"
+      },
+      "title": "Source Paths",
+      "type": "array"
+    }
+  },
+  "required": [
+    "project_id",
+    "name",
+    "created_at",
+    "source_paths",
+    "source_adapter",
+    "domain_path",
+    "lock_path",
+    "output_dir"
+  ],
+  "title": "ProjectFile",
+  "type": "object"
+}
