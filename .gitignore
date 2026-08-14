@@ -1,0 +1,58 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+.venv/
+venv/
+ENV/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.vite/
+
+# Rust / Tauri
+target/
+src-tauri/target/
+
+# PyInstaller
+*.manifest
+*.spec
+
+# CorpusSieve runtime caches and state
+cache/
+*.sqlite
+*.sqlite3
+state.sqlite
+
+# IDEs & System
+.DS_Store
+.idea/
+.vscode/
+*.swp
+*.swo

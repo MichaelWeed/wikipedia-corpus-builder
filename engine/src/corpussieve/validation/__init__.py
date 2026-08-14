@@ -1,0 +1,1 @@
+"""Canonical corpus build validator."""

@@ -1,0 +1,14 @@
+version: "1.0"
+project: corpussieve
+
+gates:
+  lint:
+    command: "cd engine && uv run ruff check . && uv run ruff format --check ."
+  typecheck:
+    command: "cd engine && uv run mypy src"
+  test:
+    command: "cd engine && uv run pytest -q"
+  version_check:
+    command: "cd engine && uv run corpussieve --version"
+  help_check:
+    command: "cd engine && uv run corpussieve domain --help"
