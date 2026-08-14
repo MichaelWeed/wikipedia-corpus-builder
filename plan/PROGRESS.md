@@ -9,7 +9,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P0.3 — 2026-08-13 — Data contracts & JSON schema generator completed
 - [x] P0.4 — 2026-08-13 — Synthetic fixture generator & golden fixwiki dump files committed
 - [x] P0.5 — 2026-08-13 — GitHub Actions CI matrix workflows & schema compatibility checker added
-- [ ] P0.6 ADRs 0001–0006
+- [x] P0.6 — 2026-08-13 — ADRs 0001–0006 architecture decision records completed
 
 ## P1 Source inspection & metadata index
 - [ ] P1.1 Source layer skeleton + filename/dump-type detection
