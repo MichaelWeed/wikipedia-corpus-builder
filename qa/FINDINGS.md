@@ -442,6 +442,36 @@ still compared byte-for-byte.
 
 ---
 
+## 14. LOW (test hermeticity, Windows-specific) — the P6.2 sidecar Rust test's own cleanup could fail on Windows
+
+**Discovered** on the *third* real CI run (2026-08-14), after fixing #12
+and #13: ubuntu-latest and macos-latest both went fully green for the first
+time. windows-latest failed a different test: `engine.rs`'s
+`spawns_bundled_sidecar_and_completes_a_real_rpc_round_trip` (added in the
+P6.2 packaging work) panicked with "cleanup must remove the copied
+sidecar".
+
+**Root cause**: the test spawns the bundled sidecar binary, kills it, waits
+on it, then immediately calls `std::fs::remove_file` on the copy it made.
+On Windows, the OS can hold an executable's file locked/mapped for a short
+time after the owning process has been killed and `wait()`ed on — the image
+teardown finishes asynchronously — so an immediate delete can fail with a
+sharing violation right after `wait()` returns. POSIX has no equivalent
+lock, which is why this was invisible on macOS/Linux (both passed cleanly).
+
+**Fixed**: retry the removal with a short backoff (up to 20 attempts, 50ms
+apart — comfortably more than the lock is ever held) instead of asserting
+success on the first try; a persistent failure after all retries is logged,
+not a panic, since this is the test's own housekeeping, not the production
+round-trip result the test actually exists to verify. Verified locally
+(passes on macOS, where the retry loop is a no-op fast path since
+`remove_file` just succeeds immediately) — like finding #12, the actual
+Windows lock-timing behavior can't be reproduced locally on macOS, so this
+fix's correctness rests on the root-cause analysis above until the next
+Windows CI run confirms it.
+
+---
+
 ## Clean results (verified, no action needed)
 
 - **SQL injection:** none. Every `execute()` is parameterized; no f-string or
