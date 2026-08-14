@@ -84,12 +84,29 @@ export const SourceScreen: React.FC<SourceScreenProps> = ({ client }) => {
       {sourceInspection && (
         <div style={{ background: "#fff", padding: "1rem", borderRadius: "4px", border: "1px solid #ddd", marginBottom: "1rem" }}>
           <h3>Dump Inspection Results</h3>
-          <p><strong>Project:</strong> {sourceInspection.project || "Wikimedia"}</p>
-          <p><strong>Language:</strong> {sourceInspection.language || "en"}</p>
-          <p><strong>Kind:</strong> {sourceInspection.kind || "multistream"}</p>
-          {sourceInspection.companion_missing && (
+          <p><strong>Project:</strong> {sourceInspection.fingerprint?.project || sourceInspection.project || "Wikimedia"}</p>
+          <p><strong>Language:</strong> {sourceInspection.fingerprint?.language || sourceInspection.language || "en"}</p>
+          <p><strong>Dump Kind:</strong> {sourceInspection.dump_kind || sourceInspection.kind || "multistream"}</p>
+          {sourceInspection.fingerprint?.dump_date && (
+            <p><strong>Dump Date:</strong> {sourceInspection.fingerprint.dump_date}</p>
+          )}
+
+          <div style={{ marginTop: "0.75rem", fontSize: "0.9rem" }}>
+            <p style={{ margin: "0.25rem 0" }}>
+              <strong>Companions:</strong>{" "}
+              {sourceInspection.has_page_sql ? "✓ page.sql" : "✗ page.sql missing"} |{" "}
+              {sourceInspection.has_categorylinks_sql ? "✓ categorylinks.sql" : "✗ categorylinks.sql missing"}{" "}
+              {sourceInspection.has_linktarget ? "| ✓ linktarget.sql" : ""}
+            </p>
+          </div>
+
+          {(!sourceInspection.has_categorylinks_sql || !sourceInspection.has_page_sql || (sourceInspection.warnings && sourceInspection.warnings.length > 0)) && (
             <div style={{ color: "#8a6d3b", background: "#fcf8e3", padding: "0.5rem", borderRadius: "4px", marginTop: "0.5rem" }}>
-              Warning: Companion SQL dump missing. Download categorylinks.sql.gz for full graph traversal.
+              {sourceInspection.warnings && sourceInspection.warnings.length > 0 ? (
+                sourceInspection.warnings.map((w: string, i: number) => <div key={i}>{w}</div>)
+              ) : (
+                <div>Warning: Companion SQL dumps missing. Download page.sql.gz and categorylinks.sql.gz for category graph traversal.</div>
+              )}
             </div>
           )}
         </div>
