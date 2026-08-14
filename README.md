@@ -52,7 +52,8 @@ CorpusSieve is an independent open-source project and is **not affiliated with, 
 ├── LICENSE / NOTICE          # Governance and copyright notice
 ├── plan/                     # Execution plan and progress tracking
 ├── docs/                     # Documentation, specs, and Architecture Decision Records (ADRs)
-│   └── SOLUTION_DESIGN.md    # CorpusSieve solution design document
+│   ├── SOLUTION_DESIGN.md    # CorpusSieve solution design document
+│   └── adr/                  # ADRs 0001-0006 (Architecture Decision Records)
 ├── engine/                   # Python core engine & CLI binary (`corpussieve`)
 │   ├── pyproject.toml
 │   ├── src/corpussieve/

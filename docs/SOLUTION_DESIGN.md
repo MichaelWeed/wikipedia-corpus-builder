@@ -4,7 +4,7 @@
 **Baseline date:** 2026-08-13  
 **Working project name:** CorpusSieve  
 **Tagline:** Local-first domain corpus compiler for Wikimedia data  
-**Intended license for project code:** Apache-2.0 (finalize before first public release)  
+**Architecture Decision Records:** [ADR 0001](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0001-tauri-v2-packaged-python-sidecar.md), [ADR 0002](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0002-deterministic-core-advisory-llm.md), [ADR 0003](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0003-non-destructive-build-separate-verified-purge.md), [ADR 0004](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0004-domain-definition-source-specific-lock.md), [ADR 0005](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0005-canonical-corpus-independent-of-consumers.md), [ADR 0006](file:///Users/johndoe/Projects/corpus_sieve/docs/adr/0006-api-based-model-discovery-no-shell-discovery.md)
 
 > CorpusSieve turns massive Wikimedia dumps into auditable, domain-specific, AI-ready corpora. A user can describe a domain such as “video games,” review and refine the proposed boundaries, preview what will be retained, build a filtered corpus, and optionally remove the original full dump after the filtered result is verified.
 
