@@ -84,6 +84,7 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         has_index = "pages-articles-multistream-index.txt.bz2" in kind_to_path
         has_page_sql = "page.sql.gz" in kind_to_path
         has_categorylinks_sql = "categorylinks.sql.gz" in kind_to_path
+        has_linktarget = "linktarget.sql.gz" in kind_to_path
 
         if "pages-articles-multistream.xml.bz2" in kind_to_path:
             if has_index:
@@ -101,6 +102,17 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
 
         if not has_categorylinks_sql:
             warnings.append("Companion categorylinks.sql.gz dump is missing.")
+        elif not has_linktarget:
+            from corpussieve.metadata.rows import detect_categorylinks_schema
+
+            _cols, cl_is_current = detect_categorylinks_schema(kind_to_path["categorylinks.sql.gz"])
+            if cl_is_current:
+                warnings.append(
+                    "This dump's categorylinks.sql.gz uses the current MediaWiki "
+                    "schema (cl_target_id) and requires a companion "
+                    "linktarget.sql.gz to resolve category names, which is missing. "
+                    "Category traversal will not work without it."
+                )
 
         fingerprint = self.fingerprint()
 
@@ -110,6 +122,7 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
             has_multistream_index=has_index,
             has_page_sql=has_page_sql,
             has_categorylinks_sql=has_categorylinks_sql,
+            has_linktarget=has_linktarget,
             warnings=warnings,
             fingerprint=fingerprint,
         )

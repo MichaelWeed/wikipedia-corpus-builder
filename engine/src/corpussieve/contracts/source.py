@@ -33,5 +33,6 @@ class SourceInspection(BaseModel):
     has_multistream_index: bool
     has_page_sql: bool
     has_categorylinks_sql: bool
+    has_linktarget: bool = False
     warnings: list[str]
     fingerprint: SourceFingerprint

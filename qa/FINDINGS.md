@@ -10,11 +10,58 @@ inferred from reading code.
 
 ---
 
-## 1. BLOCKER — CorpusSieve ingests zero category data from current Wikimedia dumps
+## 1. FIXED (2026-08-14) — CorpusSieve ingested zero category data from current Wikimedia dumps
 
-**Impact:** The core product feature (domain compilation via category graph
-traversal) is completely non-functional on real Wikipedia data. This is not a
-degradation; it is total.
+**Status: FIXED and verified end-to-end against real simplewiki 20260801.**
+
+Rebuilding the metadata index after the fix:
+
+| table | before | after |
+|---|---|---|
+| `pages` | 945,561 | 945,561 |
+| `categories` | 92,980 | 104,259 |
+| `category_edges` | **0** | **302,174** |
+| `category_membership` | **0** | **1,955,641** |
+
+`domain compile` + `domain preview` for "video games" then selected **3,372
+real articles** (Valorant, Eve Online, The Elder Scrolls III: Morrowind,
+Devil May Cry 4, ...) from a single `Category:Video_games` root, 751
+categories traversed. `build` → `validate` → `export markdown` completed
+end-to-end: 3,372 records extracted, validation PASSED (25/25 spot-checked),
+markdown + `ATTRIBUTION.md` exported. This is the first fully successful
+real-data run in the project's history. `./qa/smoke_real_dump.sh` now runs to
+completion instead of halting at step 2.
+
+**Fix implemented:**
+- `metadata/sqlparse.py::parse_create_table_columns()` reads column names from
+  each dump's own `CREATE TABLE` statement rather than assuming a fixed
+  position — resilient to future MediaWiki schema changes, not just this one.
+- `metadata/rows.py::detect_categorylinks_schema()` picks legacy (`cl_to`) vs.
+  current (`cl_target_id`) per-dump; `iter_categorylinks_rows()` and the new
+  `iter_linktarget_rows()` use the detected column indices for both schemas.
+- `metadata/build.py` builds an `lt_id → title` map from `linktarget.sql.gz`
+  (namespace 14 only) and joins it against `cl_target_id` when needed.
+- `linktarget.sql.gz` added to `naming.py`/`adapter.py` companion detection;
+  `SourceInspection.has_linktarget` (new field, defaults `False`, additive —
+  no schema regeneration needed since `SourceInspection` isn't in the exported
+  schema set). Missing `linktarget.sql.gz` on a current-schema dump now raises
+  `SOURCE_COMPANION_MISSING` with an actionable message instead of silently
+  building an empty graph.
+- **Fails loudly**: if ≥1,000 categorylinks rows are parsed and 0 resolve to a
+  category name, `build_metadata_index` raises `METADATA_PARSE_FAILED`
+  instead of silently succeeding with an empty graph. Covered by
+  `test_build_metadata_index_fails_loudly_on_stale_linktarget`.
+- Existing golden fixtures (`fixwiki`, legacy schema) were **not** changed —
+  the new column-detection code path handles both schemas, so all 116
+  original tests pass unmodified. 8 new tests in
+  `tests/metadata/test_categorylinks_schema.py` cover the current-schema path
+  (detection, row parsing, linktarget join, missing-companion error, and the
+  fail-loud sanity check) using small inline-constructed dumps rather than a
+  second binary fixture set.
+
+**Original impact (historical):** The core product feature (domain
+compilation via category graph traversal) was completely non-functional on
+real Wikipedia data. This was not a degradation; it was total.
 
 **Scope is limited to the metadata/category layer.** The extraction half of the
 product was tested independently against the real 25 GB enwiki dump and
@@ -26,46 +73,25 @@ working end-to-end pipeline on real Wikipedia.
 
 **Reproduced:** built the metadata index from the real simplewiki 20260801 dump:
 
-| table | rows |
-|---|---|
-| `pages` | 945,561 |
-| `categories` | 92,980 (from `page.sql` namespace-14 only) |
-| `category_edges` | **0** |
-| `category_membership` | **0** |
+| table | rows before fix | rows after fix |
+|---|---|---|
+| `pages` | 945,561 | 945,561 |
+| `category_edges` | **0** | 302,174 |
+| `category_membership` | **0** | 1,955,641 |
 
 **Root cause:** MediaWiki migrated the `categorylinks` schema. The real 2026
-dump has **no `cl_to` column**:
-
-```
-categorylinks(cl_from, cl_sortkey, cl_timestamp, cl_sortkey_prefix,
-              cl_type, cl_collation_id, cl_target_id)
-```
-
-The category *name* is no longer in `categorylinks` at all — `cl_target_id` is
-a foreign key into a new `linktarget(lt_id, lt_namespace, lt_title)` table.
-
-`engine/src/corpussieve/metadata/rows.py` reads the **old** schema:
-`row[1]` as `cl_to` (actually `cl_sortkey`, binary) and `row[6]` as `cl_type`
-(actually `cl_target_id`, an integer). Since `row[6]` never equals
-`page`/`subcat`, **every row is silently skipped** — no error, no warning, just
-an empty graph.
+dump has **no `cl_to` column** — the category *name* is no longer in
+`categorylinks` at all; `cl_target_id` is a foreign key into a separate
+`linktarget(lt_id, lt_namespace, lt_title)` table. The parser read a fixed
+column position that predates the migration, so every row was silently
+skipped with no error and no warning.
 
 **Why tests never caught it:** the synthetic fixtures in
 `engine/tests/fixtures/generator.py` were generated with the *old* schema, so
-the entire test suite validates against a dump format Wikimedia no longer
-publishes. All 116 tests pass against a format that doesn't exist in the wild.
-
-**Fix required:**
-1. Ingest `<proj>-<date>-linktarget.sql.gz` (a 5th source file — already
-   downloaded to `dumps/simplewiki/` and `dumps/enwiki/`) and join
-   `cl_target_id → lt_id` where `lt_namespace = 14` to recover category titles.
-2. Support **both** schemas — detect which columns exist so older dumps and the
-   existing fixtures keep working.
-3. Add `linktarget` to `SourceAdapter.inspect()` companion detection and to the
-   `SOURCE_COMPANION_MISSING` warnings.
-4. Regenerate fixtures to cover the new schema, or add a second fixture set.
-5. **Fail loudly**, not silently: an ingest that produces 0 edges from a
-   non-empty `categorylinks` should raise `METADATA_PARSE_FAILED`.
+the entire test suite validated against a dump format Wikimedia no longer
+publishes. All 116 tests passed against a format that doesn't exist in the
+wild — see the "Fix implemented" notes above for how this class of gap is
+closed.
 
 ---
 
@@ -181,6 +207,55 @@ failed; renaming to `simplewiki-20260801-*` fixed it immediately.
 Downloading from the **dated** directory is also more correct: "latest" is a
 moving target, which would silently break the source-fingerprint reproducibility
 guarantee (design §9.3). `qa/fetch_dumps.sh` handles this correctly.
+
+---
+
+## 9. MEDIUM (output quality) — Wikitext template artifacts leak into exported Markdown
+
+**Discovered:** running `export markdown` against the first successful
+real-data build (simplewiki "video games" domain, 3,372 articles) — **2,542 of
+3,372 exports (75%) reported normalization errors.**
+
+**Reproduced** in the actual output:
+
+```markdown
+# Pizza Tower
+
+Italic title
+
+infobox video game
+```
+
+```markdown
+# The Nightmare of Druaga: Fushigi no Dungeon
+
+Infobox video game
+
+developer  ublArikaMatrix SoftwareSpike ChunsoftChunsoft
+```
+
+Two distinct problems, both in `engine/src/corpussieve/normalization/wikitext_md.py`:
+
+1. `{{Italic title}}` (and likely other simple formatting templates) is
+   emitted as literal body text (`Italic title`) instead of being applied or
+   dropped.
+2. `{{Infobox video game|developer=...|...}}` is not converted to the design
+   §15.1 `**Facts**` bullet list. Instead the template name and field values
+   are concatenated into unreadable run-on text
+   (`ublArikaMatrixSoftwareSpike ChunsoftChunsoft` — likely `publisher` +
+   `developer` values glued together without separators).
+
+**Impact:** the RAG-oriented Markdown export is unusable for most real
+Wikipedia articles, which almost all carry an infobox. This is separate from
+finding #1 — extraction and selection are correct; this is a normalization
+(P5) quality bug, not a category-layer or safety bug.
+
+**Not fixed in this pass** — flagging for separate remediation. The design's
+existing golden-fixture tests (`tests/normalization/golden/`) evidently don't
+cover a real infobox with multiple fields, since this class of failure wasn't
+caught by the test suite either. A fix should add real-world infobox/template
+fixtures (e.g. from this exact `Pizza_Tower` or `Nightmare_of_Druaga` case) to
+`tests/normalization/golden/`, not just synthetic minimal ones.
 
 ---
 

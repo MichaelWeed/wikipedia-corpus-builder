@@ -7,10 +7,11 @@ RECOGNIZED_KINDS = (
     "pages-articles.xml.bz2",
     "categorylinks.sql.gz",
     "page.sql.gz",
+    "linktarget.sql.gz",
 )
 
 PATTERN = re.compile(
-    r"^([a-z0-9_]+)-(\d{8})-(pages-articles-multistream-index\.txt\.bz2|pages-articles-multistream\.xml\.bz2|pages-articles\.xml\.bz2|categorylinks\.sql\.gz|page\.sql\.gz)$"
+    r"^([a-z0-9_]+)-(\d{8})-(pages-articles-multistream-index\.txt\.bz2|pages-articles-multistream\.xml\.bz2|pages-articles\.xml\.bz2|categorylinks\.sql\.gz|page\.sql\.gz|linktarget\.sql\.gz)$"
 )
 
 

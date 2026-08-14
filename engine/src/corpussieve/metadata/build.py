@@ -9,7 +9,12 @@ from corpussieve import __version__
 from corpussieve.contracts.enums import MemberType
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
 from corpussieve.contracts.events import ProgressEvent
-from corpussieve.metadata.rows import iter_categorylinks_rows, iter_page_rows
+from corpussieve.metadata.rows import (
+    detect_categorylinks_schema,
+    iter_categorylinks_rows,
+    iter_linktarget_rows,
+    iter_page_rows,
+)
 
 if TYPE_CHECKING:
     from corpussieve.sources.base import SourceAdapter
@@ -45,6 +50,17 @@ def build_metadata_index(
     kind_to_path, _, _, _ = locate_fn()
     page_sql_path = kind_to_path["page.sql.gz"]
     cl_sql_path = kind_to_path["categorylinks.sql.gz"]
+
+    _cl_columns, cl_is_current_schema = detect_categorylinks_schema(cl_sql_path)
+    linktarget_path: Path | None = kind_to_path.get("linktarget.sql.gz")
+    if cl_is_current_schema and linktarget_path is None:
+        raise CorpusSieveError(
+            ErrorCode.SOURCE_COMPANION_MISSING,
+            "This dump's categorylinks.sql.gz uses the current MediaWiki schema "
+            "(cl_target_id), which requires a companion linktarget.sql.gz to "
+            "resolve category names. Download <proj>-<date>-linktarget.sql.gz "
+            "alongside the other dump files.",
+        )
 
     db_path.parent.mkdir(parents=True, exist_ok=True)
     building_path = db_path.with_name(db_path.name + ".building")
@@ -104,7 +120,27 @@ def build_metadata_index(
             conn.commit()
             processed_pages += len(page_batch)
 
-        # 2. Insert category_membership & category_edges
+        # 2. If categorylinks uses the current schema (cl_target_id), first build
+        #    an lt_id -> category-title map from linktarget.sql.gz, restricted to
+        #    namespace 14 (Category). Scoped to category count, not link count —
+        #    same order of magnitude as the existing cat_page_id_to_name map above.
+        linktarget_id_to_title: dict[int, str] = {}
+        if linktarget_path is not None:
+            for processed_lt, lt_row in enumerate(iter_linktarget_rows(linktarget_path), start=1):
+                if lt_row.lt_namespace == 14:
+                    linktarget_id_to_title[lt_row.lt_id] = lt_row.lt_title
+                if progress and processed_lt % batch_size == 0:
+                    progress(
+                        ProgressEvent(
+                            job_id="metadata",
+                            stage="indexing_linktarget",
+                            completed_units=processed_lt,
+                            total_units=None,
+                            message=f"Indexed {processed_lt} link targets",
+                        )
+                    )
+
+        # 3. Insert category_membership & category_edges
         membership_batch: list[tuple[str, int, str]] = []
         edges_batch: list[tuple[str, str]] = []
         all_categories: set[str] = set(cat_page_name_to_id.keys())
@@ -117,16 +153,33 @@ def build_metadata_index(
             "INSERT OR IGNORE INTO category_edges (parent_category, child_category) VALUES (?, ?)"
         )
 
+        processed_cl = 0
+        resolved_cl = 0
+        unresolved_target_ids = 0
         for processed_cl, cl_row in enumerate(iter_categorylinks_rows(cl_sql_path), start=1):
-            all_categories.add(cl_row.cl_to)
+            resolved_to: str | None
+            if cl_row.cl_to is not None:
+                resolved_to = cl_row.cl_to
+            elif cl_row.cl_target_id is not None:
+                resolved_to = linktarget_id_to_title.get(cl_row.cl_target_id)
+            else:
+                resolved_to = None
+
+            if resolved_to is None:
+                unresolved_target_ids += 1
+                continue
+            cl_to = resolved_to
+
+            resolved_cl += 1
+            all_categories.add(cl_to)
 
             if cl_row.cl_type == MemberType.PAGE:
-                membership_batch.append((cl_row.cl_to, cl_row.cl_from, "page"))
+                membership_batch.append((cl_to, cl_row.cl_from, "page"))
             elif cl_row.cl_type == MemberType.SUBCAT:
                 child_cat_name = cat_page_id_to_name.get(cl_row.cl_from)
                 if child_cat_name:
                     all_categories.add(child_cat_name)
-                    edges_batch.append((cl_row.cl_to, child_cat_name))
+                    edges_batch.append((cl_to, child_cat_name))
 
             if len(membership_batch) >= batch_size:
                 conn.executemany(mem_sql_query, membership_batch)
@@ -154,6 +207,18 @@ def build_metadata_index(
         if edges_batch:
             conn.executemany(edge_sql_query, edges_batch)
         conn.commit()
+
+        # Fail loudly rather than silently producing an empty category graph:
+        # a non-trivial categorylinks file that resolves nothing indicates a
+        # schema mismatch (e.g. missing/stale linktarget data), not "no categories".
+        if processed_cl >= 1000 and resolved_cl == 0:
+            raise CorpusSieveError(
+                ErrorCode.METADATA_PARSE_FAILED,
+                f"Parsed {processed_cl} categorylinks rows but resolved 0 category "
+                f"names ({unresolved_target_ids} unresolved cl_target_id lookups). "
+                "This usually means linktarget.sql.gz is missing, stale, or from a "
+                "different dump date than categorylinks.sql.gz.",
+            )
 
         # 3. Populate categories table
         cat_batch: list[tuple[str, int | None]] = [

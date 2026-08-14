@@ -1,9 +1,52 @@
 import gzip
+import re
 from collections.abc import Iterator
 from pathlib import Path
 from typing import Any
 
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
+
+_COLUMN_NAME_RE = re.compile(r"^\s*`([a-zA-Z0-9_]+)`")
+
+
+def parse_create_table_columns(
+    path: Path, table: str, max_bytes: int = 1024 * 64
+) -> list[str] | None:
+    r"""Read the leading `max_bytes` of a MediaWiki *.sql.gz dump and extract the
+    ordered column names from its `CREATE TABLE \`table\` ( ... )` statement.
+
+    MediaWiki has changed column order/composition across schema versions (e.g.
+    categorylinks dropped `cl_to` in favor of `cl_target_id`). Reading column
+    names from the dump's own CREATE TABLE, rather than assuming a fixed
+    position, makes row parsing resilient to that drift. Returns None if no
+    matching CREATE TABLE statement is found within `max_bytes`.
+    """
+    if not path.exists():
+        raise CorpusSieveError(
+            ErrorCode.METADATA_PARSE_FAILED,
+            f"SQL dump file '{path}' does not exist.",
+        )
+
+    header = f"CREATE TABLE `{table}` (".lower()
+    with gzip.open(path, "rt", encoding="utf-8", errors="replace") as f:
+        buf = f.read(max_bytes)
+
+    idx = buf.lower().find(header)
+    if idx == -1:
+        return None
+
+    body_start = idx + len(header)
+    close_idx = buf.find("\n) ENGINE", body_start)
+    if close_idx == -1:
+        close_idx = len(buf)
+    body = buf[body_start:close_idx]
+
+    columns: list[str] = []
+    for line in body.split("\n"):
+        m = _COLUMN_NAME_RE.match(line)
+        if m:
+            columns.append(m.group(1))
+    return columns or None
 
 
 def iter_insert_tuples(

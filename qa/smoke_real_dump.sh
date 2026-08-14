@@ -40,7 +40,11 @@ step "2. metadata build  (criterion 4-equivalent: local category index)"
 ( cd engine && uv run corpussieve metadata build --source "../$SRC" --project-dir "../$WORK" --json ) \
   | tee /tmp/cs_meta.json | tail -12
 
-# --- Known blocker gate: 2026 categorylinks schema migration -----------------
+# --- Regression guard: categorylinks schema (cl_to vs cl_target_id/linktarget) ---
+# FINDINGS.md #1 (fixed 2026-08-14): current Wikimedia dumps replaced
+# categorylinks.cl_to with cl_target_id -> linktarget(lt_id, lt_title). If this
+# ever regresses to zero edges/memberships again, everything downstream is
+# meaningless, so this check stays as a hard gate.
 EDGES=$(sqlite3 "$WORK/cache/metadata.sqlite" "SELECT COUNT(*) FROM category_edges;" 2>/dev/null || echo 0)
 MEMB=$(sqlite3  "$WORK/cache/metadata.sqlite" "SELECT COUNT(*) FROM category_membership;" 2>/dev/null || echo 0)
 echo ""
@@ -48,13 +52,11 @@ echo "  category_edges      = $EDGES"
 echo "  category_membership = $MEMB"
 if [ "$EDGES" = "0" ] || [ "$MEMB" = "0" ]; then
   echo ""
-  echo "  ❌ BLOCKER (known, see qa/FINDINGS.md #1):"
-  echo "     Zero category data ingested. Current Wikimedia dumps replaced"
-  echo "     categorylinks.cl_to with cl_target_id -> linktarget(lt_id, lt_title)."
-  echo "     engine/src/corpussieve/metadata/rows.py still reads the OLD schema,"
-  echo "     so every row is skipped and category traversal cannot work."
-  echo "     Everything downstream (domain compile/preview/build) is meaningless"
-  echo "     until this is fixed. Stopping here."
+  echo "  ❌ REGRESSION: zero category data ingested (see qa/FINDINGS.md #1)."
+  echo "     Category traversal cannot work; everything downstream is meaningless."
+  echo "     Check that linktarget.sql.gz is present and matches the categorylinks"
+  echo "     dump date, and that metadata/rows.py's schema detection still matches"
+  echo "     the dump's CREATE TABLE categorylinks column names. Stopping here."
   exit 2
 fi
 

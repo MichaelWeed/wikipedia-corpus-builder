@@ -1,10 +1,11 @@
 #!/usr/bin/env python
 """Verify the EXTRACTION layer against a real Wikimedia dump.
 
-This is deliberately independent of the metadata/category layer, which is
-currently blocked (qa/FINDINGS.md #1). It proves the mechanism behind design
-§38 criterion 12 — selective extraction from a real multistream dump without
-decompressing the whole file — even while domain selection is broken.
+This is deliberately independent of the metadata/category layer (originally
+blocked by qa/FINDINGS.md #1, fixed 2026-08-14). It proves the mechanism
+behind design §38 criterion 12 — selective extraction from a real multistream
+dump without decompressing the whole file — as a fast, standalone check that
+doesn't require a full metadata build first.
 
 Usage (from repo root):
     uv run --project engine python qa/verify_extraction_real.py [dumps/enwiki]
@@ -85,8 +86,8 @@ def main() -> int:
 
     print(f"\n✅ PASS — extracted {len(got)}/{len(sample_ids)} pages in {dt:.1f}s "
           f"without decompressing the full dump.")
-    print("   (Criterion 12's extraction mechanism works on real data; the full")
-    print("    pipeline remains blocked by FINDINGS #1 in the category layer.)")
+    print("   (Criterion 12's extraction mechanism works on real data. See")
+    print("    qa/smoke_real_dump.sh for the full pipeline including selection.)")
     return 0
 
 

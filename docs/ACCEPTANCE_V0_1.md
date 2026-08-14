@@ -9,14 +9,14 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 | 3 | An existing Wikimedia dump can be inspected without full decompression | `tests/sources/test_fingerprint.py` + real 31 GB enwiki 20260801 inspected in 0.21 s | PASSED | 2026-08-14 |
 | 4 | A local Ollama or LM Studio server can be detected through API | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
 | 5 | Available and loaded/running models are visible to the user | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
-| 6 | "Keep things related to video games" can become a user-reviewed domain definition | `tests/domain/test_traverse.py` + `test_select.py` | PASSED | 2026-08-13 |
-| 7 | All selected roots are verified against the local source metadata | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
+| 6 | "Keep things related to video games" can become a user-reviewed domain definition | `tests/domain/test_traverse.py` + `test_select.py`; real-data: 3,372 articles selected from simplewiki via `Category:Video_games` (751 categories traversed) | PASSED | 2026-08-14 |
+| 7 | All selected roots are verified against the local source metadata | `tests/domain/test_lock_build.py`; real-data root resolution confirmed on simplewiki | PASSED | 2026-08-14 |
 | 8 | Category traversal cannot loop indefinitely | `tests/domain/test_traverse.py` (cycle protection) | PASSED | 2026-08-13 |
-| 9 | The user can preview and inspect why pages are selected | `tests/domain/test_preview.py` | PASSED | 2026-08-13 |
+| 9 | The user can preview and inspect why pages are selected | `tests/domain/test_preview.py`; real-data preview verified (counts by root/depth, samples, warnings) on simplewiki | PASSED | 2026-08-14 |
 | 10 | A resolved lock is produced before build | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
 | 11 | The build consumes the lock and does not ask the LLM to improvise new rules | `tests/extraction/test_build.py` | PASSED | 2026-08-13 |
-| 12 | The selected corpus can be extracted from a real multistream dump | Extraction mechanism VERIFIED on real 25 GB enwiki (3 articles pulled by page_id in 30 s, full wikitext, no full decompression). Blocked only because *selection* yields nothing (FINDINGS #1) | BLOCKED | 2026-08-14 |
-| 13 | Canonical JSONL and Markdown exports are produced | `tests/exporters/` + `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
+| 12 | The selected corpus can be extracted from a real multistream dump | `tests/extraction/test_multistream.py` + real end-to-end: 3,372 real "video games" articles built and validated from simplewiki 20260801 (FINDINGS #1 fixed) | PASSED | 2026-08-14 |
+| 13 | Canonical JSONL and Markdown exports are produced | `tests/exporters/` + `tests/cli/test_export_cli.py`; real-data: 3,372 markdown files exported from simplewiki (output quality issue tracked separately, FINDINGS #9) | PASSED | 2026-08-14 |
 | 14 | The build can resume after interruption | `tests/extraction/test_build_resume_bugs.py` + `tests/jobs/test_state.py` | PASSED | 2026-08-14 |
 | 15 | The original source remains unchanged after ordinary build | `tests/safety/test_destructive_invariants.py::test_build_never_deletes_source` | PASSED | 2026-08-14 |
 | 16 | Source purge cannot occur after a failed validation or changed source | `tests/safety/test_destructive_invariants.py` (4 blocking tests) | PASSED | 2026-08-14 |
@@ -29,12 +29,12 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 
 ## Smoke Test Runbook (`simplewiki`)
 
-> **Status 2026-08-14:** this runbook cannot complete past step 2. Building the
-> metadata index from a current dump yields **zero** category edges and
-> memberships — MediaWiki replaced `categorylinks.cl_to` with `cl_target_id`
-> → `linktarget`, and the parser still reads the retired schema. See
-> `qa/FINDINGS.md` #1. Criterion 12 therefore remains **unverified against real
-> data**. Use `./qa/smoke_real_dump.sh`, which halts with a clear diagnostic.
+> **Status 2026-08-14:** this runbook now completes end-to-end. It previously
+> failed at step 2 (`qa/FINDINGS.md` #1, fixed same day) because current
+> Wikimedia dumps replaced `categorylinks.cl_to` with `cl_target_id` →
+> `linktarget`. `./qa/smoke_real_dump.sh` runs this full sequence and confirms
+> real category data, real selection, and a real extracted/validated corpus —
+> it last completed with 3,372 real articles from simplewiki.
 
 To run an end-to-end smoke test on a small real-world Wikimedia dump (`simplewiki`):
 
