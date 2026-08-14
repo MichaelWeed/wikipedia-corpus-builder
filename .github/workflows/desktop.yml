@@ -47,6 +47,16 @@ jobs:
         if: steps.check_desktop.outputs.EXISTS == 'true'
         uses: dtolnay/rust-toolchain@stable
 
+      - name: Install uv
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        uses: astral-sh/setup-uv@v3
+
+      - name: Setup Python
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
       - name: Desktop Lint & Test
         if: steps.check_desktop.outputs.EXISTS == 'true'
         run: |
@@ -54,9 +64,24 @@ jobs:
           pnpm -C apps/desktop lint
           pnpm -C apps/desktop test
 
+      - name: Build engine sidecar (PyInstaller)
+        # tauri.conf.json declares bundle.externalBin (P6.2 packaging) --
+        # Tauri's build script fails any cargo build, including `cargo
+        # check`, if this binary is missing. Runs natively per matrix OS
+        # since PyInstaller does not cross-compile.
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        shell: bash
+        run: engine/scripts/build_sidecar.sh
+
       - name: Rust Compile Check
         if: steps.check_desktop.outputs.EXISTS == 'true'
         run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
+      - name: Rust Tests
+        # Exercises the bundled sidecar for real: spawns it and completes an
+        # engine.hello round trip over its stdio (see engine.rs's tests).
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        run: cargo test --manifest-path apps/desktop/src-tauri/Cargo.toml
 
       - name: Tauri Debug Build
         if: steps.check_desktop.outputs.EXISTS == 'true'

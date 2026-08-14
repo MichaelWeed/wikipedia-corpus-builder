@@ -36,6 +36,9 @@ dev = [
     "mypy>=1.10",
     "respx",
 ]
+packaging = [
+    "pyinstaller>=6.10",
+]
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/corpussieve"]

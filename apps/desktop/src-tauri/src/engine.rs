@@ -19,13 +19,52 @@ impl Default for EngineState {
     }
 }
 
-pub fn spawn_sidecar(_app: &AppHandle) -> Result<Child, String> {
-    // Dev-mode engine location. `CORPUSSIEVE_ENGINE_DIR` allows an explicit override
-    // (e.g. for CI or non-standard checkouts); otherwise the path is anchored to
-    // this crate's location at compile time (CARGO_MANIFEST_DIR), not the process's
-    // runtime CWD, since Tauri's dev/launch CWD is not guaranteed.
-    // Packaged releases use the bundled `externalBin` sidecar instead (P6.2 packaging),
-    // not this dev-mode `uv run` path.
+// Name Tauri's bundler copies the PyInstaller sidecar to, alongside the main
+// app executable (Contents/MacOS/ on macOS, next to the .exe on Windows/
+// Linux) -- verified empirically via `tauri build --debug` and inspecting
+// the resulting bundle. `externalBin` binaries are built per-platform by
+// engine/scripts/build_sidecar.sh under the target-triple-suffixed name
+// Tauri's convention requires (see tauri.conf.json's bundle.externalBin);
+// the bundler strips that suffix when it copies the file into the bundle,
+// since the bundle itself is already platform-specific.
+fn bundled_sidecar_name() -> &'static str {
+    if cfg!(windows) {
+        "corpussieve-engine.exe"
+    } else {
+        "corpussieve-engine"
+    }
+}
+
+/// Path to a bundled sidecar binary next to the running executable, if one
+/// is actually there. This -- not a debug/release build-flavor check -- is
+/// the real signal for "packaged app" vs "dev mode": `tauri build --debug`
+/// (used by CI to test bundling) still has debug_assertions on, but does
+/// have the sidecar bundled; `cargo run`/`tauri dev` never do.
+fn bundled_sidecar_path() -> Option<PathBuf> {
+    let exe = env::current_exe().ok()?;
+    let dir = exe.parent()?;
+    let candidate = dir.join(bundled_sidecar_name());
+    candidate.is_file().then_some(candidate)
+}
+
+pub fn spawn_sidecar() -> Result<Child, String> {
+    if let Some(sidecar_path) = bundled_sidecar_path() {
+        return Command::new(&sidecar_path)
+            .args(["engine", "serve"])
+            .stdin(Stdio::piped())
+            .stdout(Stdio::piped())
+            .stderr(Stdio::inherit())
+            .spawn()
+            .map_err(|e| format!("Failed to spawn bundled engine sidecar at {:?}: {}", sidecar_path, e));
+    }
+
+    // Dev-mode fallback: no bundled sidecar next to this executable, so this
+    // is `cargo run`/`tauri dev` from the source tree -- shell out to `uv
+    // run` against the engine directory instead. `CORPUSSIEVE_ENGINE_DIR`
+    // allows an explicit override (e.g. for CI or non-standard checkouts);
+    // otherwise the path is anchored to this crate's location at compile
+    // time (CARGO_MANIFEST_DIR), not the process's runtime CWD, since
+    // Tauri's dev/launch CWD is not guaranteed.
     let engine_dir = if let Ok(val) = env::var("CORPUSSIEVE_ENGINE_DIR") {
         PathBuf::from(val)
     } else {
@@ -102,7 +141,7 @@ pub async fn engine_call(
         if *restarts > 3 {
             return Err("Engine sidecar crashed maximum allowed times (3). Restart desktop app.".into());
         }
-        if let Ok(c) = spawn_sidecar(&app) {
+        if let Ok(c) = spawn_sidecar() {
             *lock = Some(c);
         } else {
             return Err("Failed to spawn engine sidecar process.".into());
@@ -145,4 +184,81 @@ pub async fn engine_call(
     }
 
     Err("Engine sidecar unreachable".into())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Proves the actual packaged-app code path end to end: copy the real
+    /// PyInstaller sidecar (built by engine/scripts/build_sidecar.sh) next
+    /// to this test binary -- exactly where Tauri's bundler places it next
+    /// to the app executable in a real .app, verified empirically via
+    /// `tauri build --debug` -- then call the same spawn_sidecar() used in
+    /// production and do a real engine.hello round trip over its stdio.
+    /// Skips (doesn't fail) if the sidecar hasn't been built, since it's a
+    /// separate, optional build step (`engine/scripts/build_sidecar.sh`),
+    /// not part of a plain `cargo test`.
+    #[test]
+    fn spawns_bundled_sidecar_and_completes_a_real_rpc_round_trip() {
+        let manifest_dir = PathBuf::from(env!("CARGO_MANIFEST_DIR"));
+        let binaries_dir = manifest_dir.join("binaries");
+        let Some(source) = std::fs::read_dir(&binaries_dir).ok().and_then(|entries| {
+            entries
+                .filter_map(|e| e.ok())
+                .map(|e| e.path())
+                .find(|p| p.file_name().and_then(|n| n.to_str()).is_some_and(|n| n.starts_with("corpussieve-engine-")))
+        }) else {
+            eprintln!(
+                "skipping: no sidecar binary in {:?} -- run engine/scripts/build_sidecar.sh first",
+                binaries_dir
+            );
+            return;
+        };
+
+        let exe = env::current_exe().expect("current_exe");
+        let dest = exe.parent().expect("parent dir").join(bundled_sidecar_name());
+
+        // Detection must not false-positive before the binary is actually
+        // there (both assertions live in this one test, not a separate
+        // test function, since `bundled_sidecar_path()`'s target directory
+        // is shared process-wide -- a second test toggling the same file
+        // concurrently would race Rust's default parallel test runner).
+        assert!(bundled_sidecar_path().is_none());
+
+        std::fs::copy(&source, &dest).expect("copy sidecar next to test binary");
+        assert_eq!(bundled_sidecar_path().as_deref(), Some(dest.as_path()));
+
+        let cleanup = || {
+            let _ = std::fs::remove_file(&dest);
+        };
+
+        let result = (|| -> Result<(), String> {
+            let mut child = spawn_sidecar()?;
+            let mut stdin = child.stdin.take().ok_or("no stdin")?;
+            let stdout = child.stdout.take().ok_or("no stdout")?;
+
+            stdin
+                .write_all(b"{\"jsonrpc\":\"2.0\",\"id\":1,\"method\":\"engine.hello\",\"params\":{}}\n")
+                .map_err(|e| e.to_string())?;
+            stdin.flush().map_err(|e| e.to_string())?;
+
+            let mut reader = BufReader::new(stdout);
+            let mut line = String::new();
+            reader.read_line(&mut line).map_err(|e| e.to_string())?;
+
+            let v: serde_json::Value = serde_json::from_str(&line).map_err(|e| e.to_string())?;
+            if v.get("result").and_then(|r| r.get("protocol_version")).and_then(|p| p.as_i64()) != Some(1) {
+                return Err(format!("unexpected response: {line}"));
+            }
+
+            let _ = child.kill();
+            let _ = child.wait();
+            Ok(())
+        })();
+
+        cleanup();
+        assert!(bundled_sidecar_path().is_none(), "cleanup must remove the copied sidecar");
+        result.expect("bundled sidecar round trip");
+    }
 }

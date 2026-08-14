@@ -65,5 +65,9 @@ state.sqlite
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
 
+# PyInstaller sidecar binary, built per-platform by engine/scripts/build_sidecar.sh
+# (see tauri.conf.json's bundle.externalBin) -- never committed, always rebuilt.
+apps/desktop/src-tauri/binaries/
+
 # Downloaded Wikimedia dumps (large, never committed)
 dumps/
