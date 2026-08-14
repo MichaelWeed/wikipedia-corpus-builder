@@ -15,7 +15,7 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 | 9 | The user can preview and inspect why pages are selected | `tests/domain/test_preview.py` | PASSED | 2026-08-13 |
 | 10 | A resolved lock is produced before build | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
 | 11 | The build consumes the lock and does not ask the LLM to improvise new rules | `tests/extraction/test_build.py` | PASSED | 2026-08-13 |
-| 12 | The selected corpus can be extracted from a real multistream dump | `tests/extraction/test_multistream.py` | PASSED | 2026-08-13 |
+| 12 | The selected corpus can be extracted from a real multistream dump | `tests/extraction/test_multistream.py` (synthetic fixture only) | FAILED | 2026-08-14 |
 | 13 | Canonical JSONL and Markdown exports are produced | `tests/exporters/` + `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
 | 14 | The build can resume after interruption | `tests/extraction/test_build_resume_bugs.py` + `tests/jobs/test_state.py` | PASSED | 2026-08-14 |
 | 15 | The original source remains unchanged after ordinary build | `tests/safety/test_destructive_invariants.py::test_build_never_deletes_source` | PASSED | 2026-08-14 |
@@ -28,15 +28,26 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 [^1]: Verified on macOS (aarch64) only: `cargo check`/`cargo build` pass, `pnpm tauri build --debug` produces `CorpusSieve.app` and a `.dmg`, and the `.app` was launched via `open` (the real double-click path) with no terminal window and no crash. This is a local **debug** build a developer produced, not a signed/notarized installer a novice would download — that remains P7.4. It also still shells out to `uv run corpussieve engine serve` at runtime (see criterion 20), so it requires Python/uv on the machine; the bundled-sidecar (`externalBin`) packaging that removes that dependency is still open in P6.2.
 
 ## Smoke Test Runbook (`simplewiki`)
+
+> **Status 2026-08-14:** this runbook cannot complete past step 2. Building the
+> metadata index from a current dump yields **zero** category edges and
+> memberships — MediaWiki replaced `categorylinks.cl_to` with `cl_target_id`
+> → `linktarget`, and the parser still reads the retired schema. See
+> `qa/FINDINGS.md` #1. Criterion 12 therefore remains **unverified against real
+> data**. Use `./qa/smoke_real_dump.sh`, which halts with a clear diagnostic.
+
 To run an end-to-end smoke test on a small real-world Wikimedia dump (`simplewiki`):
 
-1. Download latest simplewiki dump files into `./dumps`:
+1. Download the dump set:
    ```bash
-   curl -O https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles-multistream.xml.bz2
-   curl -O https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-pages-articles-multistream-index.txt.bz2
-   curl -O https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-page.sql.gz
-   curl -O https://dumps.wikimedia.org/simplewiki/latest/simplewiki-latest-categorylinks.sql.gz
+   ./qa/fetch_dumps.sh simplewiki
    ```
+   This fetches five files (including `linktarget.sql.gz`, required by current
+   dumps) using **dated** filenames. Do **not** use the `-latest-` filenames
+   from `dumps.wikimedia.org/<wiki>/latest/`: `parse_dump_filename` requires a
+   `YYYYMMDD` date and rejects them with `SOURCE_UNSUPPORTED`, and a moving
+   "latest" would break the source-fingerprint reproducibility guarantee
+   (design §9.3).
 2. Build metadata & compile domain:
    ```bash
    corpussieve metadata build --source ./dumps --project-dir ./my_project

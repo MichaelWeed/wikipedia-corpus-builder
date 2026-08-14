@@ -64,3 +64,6 @@ state.sqlite
 # Tauri build artifacts (produced by verification, not release outputs)
 apps/desktop/src-tauri/target/
 apps/desktop/src-tauri/gen/
+
+# Downloaded Wikimedia dumps (large, never committed)
+dumps/

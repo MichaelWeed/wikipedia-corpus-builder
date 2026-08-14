@@ -14,8 +14,8 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 ## P1 Source inspection & metadata index
 - [x] P1.1 — 2026-08-13 — Source layer skeleton & Wikimedia dump naming parser completed
 - [x] P1.2 — 2026-08-13 — Quick-hash source fingerprinting & drift detection completed
-- [x] P1.3 — 2026-08-13 — Streaming SQL parser (page, categorylinks) & title normalization completed
-- [x] P1.4 — 2026-08-13 — Atomic SQLite metadata index builder completed
+- [ ] P1.3 — **REOPENED 2026-08-14** — categorylinks parser reads the retired `cl_to` schema. Current Wikimedia dumps use `cl_target_id` → `linktarget(lt_id, lt_namespace, lt_title)`; every row is silently skipped, yielding 0 edges and 0 memberships on real data. Passes only because fixtures use the old schema. See `qa/FINDINGS.md` #1. Fix proven viable (join recovers 13,628 edges / 82,379 memberships on simplewiki).
+- [ ] P1.4 — **REOPENED 2026-08-14** — depends on P1.3; must also ingest `linktarget.sql.gz` (a 5th source file), add it to companion detection/warnings, and fail loudly rather than silently producing an empty graph.
 - [x] P1.5 — 2026-08-13 — Metadata query API (child_categories, search, stats, decisions) completed
 - [x] P1.6 — 2026-08-13 — CLI commands source inspect, metadata build, metadata search completed
 
