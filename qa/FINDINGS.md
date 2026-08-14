@@ -334,6 +334,45 @@ correctly with real generated content.
 
 ---
 
+## 11. MEDIUM (test hermeticity) — `test_cli_export_markdown_and_jsonl` never ran hermetically, always failed on a genuinely fresh checkout
+
+**Discovered** the hard way: this test passed on every local run throughout
+the entire session (P6.6, P6.2, P7.4 work) but failed on the *very first*
+real CI run after pushing to GitHub — on all 3 OS, in `engine.yml`
+(2026-08-14). It read `tests/fixtures/fixoutput/corpus`, falling back to
+`scratch/fixoutput/corpus` — **neither of which any test in this repo
+generates or commits**. It only ever passed because this session's worktree
+happened to have a leftover `fixoutput` corpus from an earlier ad-hoc run
+(from before this session even started, inherited from the original
+worktree). A genuinely fresh checkout — which is all real CI ever is — hit
+the fallback path finding nothing there either, and failed with exit code 2.
+
+**Fixed**: `tests/cli/test_export_cli.py` now builds a real corpus from the
+committed `fixwiki` fixture inside the test itself (`_build_real_corpus`,
+same pattern as `tests/extraction/test_build.py`), making it fully
+self-contained. Verified locally (137/137 tests pass, first fully clean run
+of this session) and this is the fix that made the real CI run in question
+pass end to end.
+
+**Also discovered by the same first CI run**, both now fixed:
+- `desktop.yml`/`release.yml`'s Linux system-dependency list installed both
+  `libappindicator3-dev` and `libayatana-appindicator3-dev`, which
+  *conflict* with each other (`apt-get` exit 100: "Unable to correct
+  problems, you have held broken packages"). Only the latter (Tauri v2's
+  currently documented package) is installed now.
+- Neither `desktop.yml`'s bare `cargo check`/`cargo test` steps had ever run
+  after a genuinely fresh `pnpm -C apps/desktop build` — this session's own
+  local testing always had a leftover `apps/desktop/dist/` from earlier
+  manual `pnpm build` runs, so the missing step was invisible locally.
+  `tauri::generate_context!()` panics at compile time without `dist/`
+  (`frontendDist` config points at it) — real CI hit this on both macOS and
+  Windows ("proc macro panicked ... frontendDist ... doesn't exist").
+  Reproduced locally by deleting `dist/` and `target/` fresh, confirmed the
+  fix (`pnpm -C apps/desktop build` before any bare `cargo` step) resolves
+  it.
+
+---
+
 ## Clean results (verified, no action needed)
 
 - **SQL injection:** none. Every `execute()` is parameterized; no f-string or

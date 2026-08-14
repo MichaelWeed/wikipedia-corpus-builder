@@ -59,13 +59,16 @@ jobs:
 
       # Tauri v2 on Linux links against webkit2gtk/libsoup/appindicator at
       # build time; these aren't preinstalled on ubuntu-latest runners.
+      # libappindicator3-dev and libayatana-appindicator3-dev conflict with
+      # each other (verified via a real CI failure: "E: Unable to correct
+      # problems, you have held broken packages") -- only the latter
+      # (Tauri v2's currently documented package) is installed.
       - name: Install Linux system dependencies (Tauri)
         if: steps.check_desktop.outputs.EXISTS == 'true' && runner.os == 'Linux'
         run: |
           sudo apt-get update
-          sudo apt-get install -y libwebkit2gtk-4.1-dev libappindicator3-dev \
-            librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev \
-            libayatana-appindicator3-dev
+          sudo apt-get install -y libwebkit2gtk-4.1-dev libayatana-appindicator3-dev \
+            librsvg2-dev patchelf build-essential libssl-dev libgtk-3-dev
 
       - name: Desktop Lint & Test
         if: steps.check_desktop.outputs.EXISTS == 'true'
@@ -73,6 +76,18 @@ jobs:
           pnpm -C apps/desktop install
           pnpm -C apps/desktop lint
           pnpm -C apps/desktop test
+
+      - name: Desktop Build (vite)
+        # tauri.conf.json's build.frontendDist ("../dist") must exist before
+        # ANY cargo invocation that runs the tauri-build build script (check/
+        # test/build alike) -- generate_context!() panics otherwise. Verified
+        # via a real CI failure ("frontendDist ... doesn't exist", proc macro
+        # panicked at main.rs:12). `tauri build`'s own beforeBuildCommand hook
+        # would produce this automatically, but bare `cargo check`/`cargo
+        # test` below don't go through the Tauri CLI at all, so it must be
+        # built explicitly first.
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        run: pnpm -C apps/desktop build
 
       - name: Build engine sidecar (PyInstaller)
         # tauri.conf.json declares bundle.externalBin (P6.2 packaging) --
