@@ -302,6 +302,36 @@ render generic defaults (`"Wikimedia"`, `"en"`, `"multistream"`) instead of
 the actual detected values — so it's LOW severity (cosmetic, not a crash),
 but worth a fix alongside the above.
 
+**Correction (2026-08-14):** row 276's "FIXED" was accurate for the server
+dispatch (protocol-tested), but manual verification against the real
+`DomainScreen.tsx` and a live Ollama model surfaced three problems the
+subprocess test's `"error" in resp or "result" in resp` assertion couldn't
+catch:
+
+1. `handleProposeFacets` read `res.facets`, but `domain.proposeFacets`
+   actually returns `{include_facets, exclude_facets, rationale}` — the
+   button silently did nothing.
+2. `domain.boundaryQuestions`/`domain.applyAnswers` had zero UI entry
+   points — implemented and protocol-tested, but unreachable by clicking
+   anything in the app.
+3. `complete_structured`'s 30s httpx timeout was too tight for a cold
+   local-model load (measured ~26s for a 51GB model on this machine) and,
+   on timeout, burned two more identical retries with a "Validation
+   failed" correction message that can't fix a slow model.
+
+All three fixed: `DomainScreen.tsx` now reads the real response shape and
+has a full propose → boundary-questions → apply-answers flow wired to
+`domain.applyAnswers`; `complete_structured` timeout raised to 120s and
+fails fast (no wasted retries) on timeout in both `ollama.py`/`lmstudio.py`;
+`domain.create`/`client.createDomain` now also accept `exclude_facets` so
+AI-proposed exclusions survive into `domain.yaml`. `test_server.py`'s
+AI-domain subprocess test now points offline calls at a genuinely
+unreachable port (not Ollama's real default, which was silently exercising
+a live server when one happened to be running) and asserts on actual error
+codes. Verified live end-to-end against `huihui_ai/qwen3-coder-next-abliterated`
+via Ollama: proposeFacets → boundaryQuestions → applyAnswers all completed
+correctly with real generated content.
+
 ---
 
 ## Clean results (verified, no action needed)
