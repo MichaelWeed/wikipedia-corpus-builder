@@ -24,7 +24,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P2.2 — 2026-08-13 — Root category resolution & exclusion matching completed
 - [x] P2.3 — 2026-08-13 — Category graph traversal engine completed (100% branch coverage)
 - [x] P2.4 — 2026-08-13 — Article selection & zstd compressed manifest generator completed
-- [ ] P2.5 Domain lock generation (deterministic path)
+- [x] P2.5 — 2026-08-13 — Deterministic domain lock generator & verifier completed
 - [ ] P2.6 Preview & audit
 - [ ] P2.7 CLI: `domain compile`, `domain audit`, `domain preview`
 
