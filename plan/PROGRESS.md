@@ -21,7 +21,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 
 ## P2 Deterministic domain compiler
 - [x] P2.1 — 2026-08-13 — Domain definition load/validate & domain create CLI completed
-- [ ] P2.2 Root resolution against local categories
+- [x] P2.2 — 2026-08-13 — Root category resolution & exclusion matching completed
 - [ ] P2.3 Category graph traversal engine
 - [ ] P2.4 Article selection + manifest generation
 - [ ] P2.5 Domain lock generation (deterministic path)
