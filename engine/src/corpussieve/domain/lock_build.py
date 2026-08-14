@@ -4,6 +4,7 @@ from pathlib import Path
 
 from corpussieve import __version__
 from corpussieve.contracts.domain import DomainDefinition
+from corpussieve.contracts.enums import AmbiguousBranchPolicy
 from corpussieve.contracts.lock import (
     DomainLock,
     LlmProvenance,
@@ -11,10 +12,12 @@ from corpussieve.contracts.lock import (
 from corpussieve.contracts.lock import (
     ResolvedRoot as LockResolvedRoot,
 )
+from corpussieve.domain.branch_review import LlmAmbiguousHook
 from corpussieve.domain.definition import domain_hash
 from corpussieve.domain.resolve import resolve_exclusions, resolve_roots
 from corpussieve.domain.traverse import AmbiguousHook, TraversalResult, traverse
 from corpussieve.metadata.queries import MetadataIndex
+from corpussieve.models.base import ModelProvider
 
 
 def compile_lock(
@@ -22,12 +25,31 @@ def compile_lock(
     index: MetadataIndex,
     source_fingerprint: str,
     on_ambiguous: AmbiguousHook | None = None,
+    provider_ctx: tuple[ModelProvider, str] | None = None,
     llm_provenance: LlmProvenance | None = None,
     acknowledged_warnings: tuple[str, ...] | list[str] = (),
 ) -> tuple[DomainLock, TraversalResult]:
     """Compile domain definition and metadata index into deterministic DomainLock."""
     root_res = resolve_roots(defn, index)
     explicit_ex, facet_ex = resolve_exclusions(defn, index)
+
+    if provider_ctx and not on_ambiguous:
+        provider, model_id = provider_ctx
+        if defn.policy.ambiguous_branch == AmbiguousBranchPolicy.REVIEW:
+            on_ambiguous = LlmAmbiguousHook(
+                provider=provider,
+                model_id=model_id,
+                index=index,
+                defn=defn,
+                source_fingerprint=source_fingerprint,
+            )
+            if not llm_provenance:
+                llm_provenance = LlmProvenance(
+                    provider=provider.endpoint.provider,
+                    model_id=model_id,
+                    prompt_version="branch-v1",
+                    schema_version="1",
+                )
 
     traversal = traverse(
         index,
@@ -74,10 +96,7 @@ def compile_lock(
 
 
 def verify_lock(lock: DomainLock, defn: DomainDefinition, source_fingerprint: str) -> list[str]:
-    """Verify DomainLock integrity and match against current domain definition and source.
-
-    Returns list of error messages (empty list if valid).
-    """
+    """Verify DomainLock integrity and match against current domain definition and source."""
     errors: list[str] = []
 
     # 1. Lock hash calculation check
