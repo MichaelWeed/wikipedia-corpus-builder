@@ -16,7 +16,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P1.2 — 2026-08-13 — Quick-hash source fingerprinting & drift detection completed
 - [x] P1.3 — 2026-08-13 — Streaming SQL parser (page, categorylinks) & title normalization completed
 - [x] P1.4 — 2026-08-13 — Atomic SQLite metadata index builder completed
-- [ ] P1.5 Metadata query API
+- [x] P1.5 — 2026-08-13 — Metadata query API (child_categories, search, stats, decisions) completed
 - [ ] P1.6 CLI: `source inspect`, `metadata build`, `metadata search`
 
 ## P2 Deterministic domain compiler
