@@ -1,5 +1,7 @@
+import contextlib
 import hashlib
 import json
+import logging
 import os
 import shutil
 import threading
@@ -24,6 +26,8 @@ from corpussieve.jobs.state import JobStore
 from corpussieve.metadata.queries import MetadataIndex
 from corpussieve.sources.wikimedia.adapter import WikimediaXmlDumpAdapter
 from corpussieve.validation.validate import validate_corpus
+
+logger = logging.getLogger(__name__)
 
 EST_BYTES_PER_ARTICLE = 3500
 
@@ -93,7 +97,7 @@ def run_build(
 
     staging_dir = out_dir / f".staging-{job_id}"
     if not resume_job_id and staging_dir.exists():
-        shutil.rmtree(staging_dir, ignore_errors=True)
+        shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     c_zst_path = staging_dir / "corpus.jsonl.zst"
@@ -102,20 +106,35 @@ def run_build(
     selected_ids = {r.page_id for r in manifest_records}
     manifest_by_id = {r.page_id: r for r in manifest_records}
 
-    adapter = WikimediaXmlDumpAdapter(p_dir / "source")
-    raw_pages = adapter.extract_selected_pages(selected_ids, job_store=job_store, job_id=job_id)
+    source_dir = p_dir / "source"
+    proj_file_path = p_dir / "project.yaml"
+    if proj_file_path.exists():
+        try:
+            import yaml  # type: ignore[import-untyped]
 
-    cctx = zstd.ZstdCompressor(level=10)
-    enriched_map: dict[int, ManifestRecord] = {}
-    extracted_count = 0
+            p_data = yaml.safe_load(proj_file_path.read_text(encoding="utf-8"))
+            if p_data and isinstance(p_data, dict) and p_data.get("source_paths"):
+                s_paths = p_data["source_paths"]
+                if isinstance(s_paths, list) and s_paths:
+                    raw_sp = Path(s_paths[0])
+                    source_dir = raw_sp if raw_sp.is_absolute() else (p_dir / raw_sp).resolve()
+        except Exception as exc:
+            logger.warning("Failed to read project.yaml source_paths: %s", exc)
 
-    open_mode = "ab" if (resume_job_id and c_zst_path.exists()) else "wb"
     try:
+        adapter = WikimediaXmlDumpAdapter(source_dir)
+        raw_pages = adapter.extract_selected_pages(selected_ids, job_store=job_store, job_id=job_id)
+
+        cctx = zstd.ZstdCompressor(level=10)
+        enriched_map: dict[int, ManifestRecord] = {}
+        extracted_count = 0
+
+        open_mode = "ab" if (resume_job_id and c_zst_path.exists()) else "wb"
         with c_zst_path.open(open_mode) as f_corp_raw, cctx.stream_writer(f_corp_raw) as c_writer:
             for raw_page in raw_pages:
                 if cancel_event and cancel_event.is_set():
                     job_store.transition(job_id, JobState.CANCELLED)
-                    shutil.rmtree(staging_dir, ignore_errors=True)
+                    shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
                     raise CorpusSieveError(ErrorCode.INTERNAL_ERROR, "Build cancelled by user")
 
                 man_rec = manifest_by_id.get(raw_page.page_id)
@@ -187,7 +206,7 @@ def run_build(
         val_res = validate_corpus(staging_dir, lock)
         if val_res.status != "PASSED":
             job_store.transition(job_id, JobState.FAILED, error_code="VALIDATION_FAILED")
-            shutil.rmtree(staging_dir, ignore_errors=True)
+            shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
             msg = f"Corpus validation failed: {', '.join(val_res.errors)}"
             raise CorpusSieveError(ErrorCode.VALIDATION_FAILED, msg)
 
@@ -201,11 +220,21 @@ def run_build(
         # Atomic promote: os.replace staging -> target corpus directory
         final_corpus_dir = out_dir / "corpus"
         if final_corpus_dir.exists():
-            shutil.rmtree(final_corpus_dir, ignore_errors=True)
+            shutil.rmtree(final_corpus_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
 
         os.replace(staging_dir, final_corpus_dir)
         return report
 
-    except Exception:
-        shutil.rmtree(staging_dir, ignore_errors=True)
+    except Exception as exc:
+        err_code = getattr(exc, "code", ErrorCode.INTERNAL_ERROR)
+        err_str = err_code.value if hasattr(err_code, "value") else str(err_code)
+        with contextlib.suppress(Exception):
+            job_store.transition(
+                job_id,
+                JobState.FAILED,
+                error_code=err_str,
+                error_message=str(exc),
+            )
+        if staging_dir.exists():
+            shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
         raise

@@ -43,7 +43,7 @@ def export_markdown(
 
     staging_dir = out_dir.parent / f".staging-md-{os.getpid()}"
     if staging_dir.exists():
-        shutil.rmtree(staging_dir, ignore_errors=True)
+        shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     normalizer = WikitextMarkdownNormalizer()
@@ -71,7 +71,7 @@ def export_markdown(
     write_attribution(records, staging_dir)
 
     if out_dir.exists():
-        shutil.rmtree(out_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
     os.replace(staging_dir, out_dir)
 
     return {

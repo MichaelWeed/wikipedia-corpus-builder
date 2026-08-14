@@ -22,6 +22,7 @@ dependencies = [
     "mwparserfromhell>=0.6",
     "platformdirs>=4",
     "keyring>=25",
+    "send2trash>=1.8",
 ]
 
 [project.scripts]
@@ -44,8 +45,18 @@ line-length = 100
 target-version = "py312"
 
 [tool.ruff.lint]
-select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG"]
+select = ["E", "F", "I", "N", "UP", "B", "A", "C4", "SIM", "ARG", "TID"]
 ignore = []
+
+[tool.ruff.lint.flake8-tidy-imports.banned-api]
+"os.remove".msg = "Deletion APIs are forbidden outside corpussieve.safety (P7 invariant)."
+"os.unlink".msg = "Deletion APIs are forbidden outside corpussieve.safety (P7 invariant)."
+"shutil.rmtree".msg = "Deletion APIs are forbidden outside corpussieve.safety (P7 invariant). Use # noqa: TID251 with justification for staging cleanup."
+"send2trash.send2trash".msg = "Deletion APIs are forbidden outside corpussieve.safety (P7 invariant)."
+
+[tool.ruff.lint.per-file-ignores]
+"src/corpussieve/safety/*" = ["TID251"]
+"tests/*" = ["TID251"]
 
 [tool.mypy]
 python_version = "3.12"

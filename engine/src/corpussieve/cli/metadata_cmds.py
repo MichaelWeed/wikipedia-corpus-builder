@@ -71,7 +71,7 @@ def metadata_build(
                 project_id=f"proj-{inspection.fingerprint.project}",
                 name=f"{inspection.fingerprint.project} Project",
                 created_at=now_iso,
-                source_paths=[str(source)],
+                source_paths=[str(Path(source).resolve())],
                 source_adapter="wikimedia_xml_dump",
                 source_fingerprint=inspection.fingerprint.fingerprint,
                 domain_path="domain.yaml",

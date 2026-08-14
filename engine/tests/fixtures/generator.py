@@ -328,7 +328,7 @@ def generate_fixtures() -> None:
 
     page_sql_body = page_sql_header + ",\n".join(page_sql_values) + ";\n"
     page_sql_path = FIXTURE_DIR / "fixwiki-20260801-page.sql.gz"
-    page_sql_path.write_bytes(gzip.compress(page_sql_body.encode("utf-8")))
+    page_sql_path.write_bytes(gzip.compress(page_sql_body.encode("utf-8"), mtime=0))
 
     cl_sql_header = (
         "DROP TABLE IF EXISTS `categorylinks`;\n"
@@ -355,7 +355,7 @@ def generate_fixtures() -> None:
 
     cl_sql_body = cl_sql_header + ",\n".join(cl_sql_values) + ";\n"
     cl_sql_path = FIXTURE_DIR / "fixwiki-20260801-categorylinks.sql.gz"
-    cl_sql_path.write_bytes(gzip.compress(cl_sql_body.encode("utf-8")))
+    cl_sql_path.write_bytes(gzip.compress(cl_sql_body.encode("utf-8"), mtime=0))
 
     # 3. Write expected.json ground truth
     expected_data: dict[str, Any] = {

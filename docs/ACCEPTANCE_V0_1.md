@@ -1,29 +1,29 @@
 # CorpusSieve v0.1 Acceptance Matrix
 
-All 20 design acceptance criteria are mapped to executable automated test IDs or manual runbook steps.
+Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design acceptance criteria are mapped to executable automated test IDs, CI workflows, or manual runbook steps.
 
-| ID | Acceptance Criterion | Verification Method | Status | Date |
+| ID | Acceptance Criterion (Design §38) | Verification Method | Status | Date |
 |---|---|---|---|---|
-| 1 | No visible terminal window ever appears during desktop launch/operation | Manual / Tauri windowed flag | PASSED | 2026-08-13 |
-| 2 | Pure offline mode: fully functional without internet access | `tests/models/test_ollama.py` (respx zero-HTTP) | PASSED | 2026-08-13 |
-| 3 | Wikimedia XML dump inspection & quick-hash fingerprinting | `tests/sources/test_fingerprint.py` | PASSED | 2026-08-13 |
-| 4 | Streaming SQL index build (`page`, `categorylinks`) to SQLite | `tests/metadata/test_build.py` | PASSED | 2026-08-13 |
-| 5 | Category graph traversal with depth bounding and cycle protection | `tests/domain/test_traverse.py` | PASSED | 2026-08-13 |
-| 6 | Article selection algorithm & compressed manifest output | `tests/domain/test_select.py` | PASSED | 2026-08-13 |
-| 7 | Deterministic lockfile compiler & tamper verification | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
-| 8 | Explanation provenance audit (`explain_page_selection`) | `tests/domain/test_preview.py` | PASSED | 2026-08-13 |
-| 9 | Local LLM provider adapters (Ollama / LM Studio) | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
-| 10 | Ambiguous-branch review engine with SQLite decision caching | `tests/domain/test_branch_review.py` | PASSED | 2026-08-13 |
-| 11 | Multistream bz2 selective seeking extractor | `tests/extraction/test_multistream.py` | PASSED | 2026-08-13 |
-| 12 | Sequential streaming fallback extractor | `tests/extraction/test_sequential.py` | PASSED | 2026-08-13 |
-| 13 | Job store state machine & SQLite checkpoint recovery | `tests/jobs/test_state.py` | PASSED | 2026-08-13 |
-| 14 | Atomic promoter via staging directory & `os.replace` | `tests/extraction/test_build.py` | PASSED | 2026-08-13 |
-| 15 | Integrity validator with random sha256 spot check | `tests/validation/test_validate.py` | PASSED | 2026-08-13 |
-| 16 | RAG-ready Wikitext to Markdown normalizer & frontmatter | `tests/normalization/test_wikitext_md.py` | PASSED | 2026-08-13 |
-| 17 | Path-traversal safe filename slugifier | `tests/exporters/test_naming.py` | PASSED | 2026-08-13 |
-| 18 | Human & machine attribution generators (`ATTRIBUTION.md`) | `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
-| 19 | Safe purge 7-precondition checklist & typed token verification | `tests/safety/test_destructive_invariants.py` | PASSED | 2026-08-13 |
-| 20 | Subprocess NDJSON JSON-RPC stdio engine protocol server | `tests/api/test_server.py` | PASSED | 2026-08-13 |
+| 1 | A novice can install and launch the desktop app without seeing a terminal window | Manual: packaged sidecar build | NOT_RUN | - |
+| 2 | An expert can complete the same core workflow from CLI | `tests/cli/` suite + manual simplewiki runbook | PASSED | 2026-08-13 |
+| 3 | An existing Wikimedia dump can be inspected without full decompression | `tests/sources/test_fingerprint.py` | PASSED | 2026-08-13 |
+| 4 | A local Ollama or LM Studio server can be detected through API | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
+| 5 | Available and loaded/running models are visible to the user | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
+| 6 | "Keep things related to video games" can become a user-reviewed domain definition | `tests/domain/test_traverse.py` + `test_select.py` | PASSED | 2026-08-13 |
+| 7 | All selected roots are verified against the local source metadata | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
+| 8 | Category traversal cannot loop indefinitely | `tests/domain/test_traverse.py` (cycle protection) | PASSED | 2026-08-13 |
+| 9 | The user can preview and inspect why pages are selected | `tests/domain/test_preview.py` | PASSED | 2026-08-13 |
+| 10 | A resolved lock is produced before build | `tests/domain/test_lock_build.py` | PASSED | 2026-08-13 |
+| 11 | The build consumes the lock and does not ask the LLM to improvise new rules | `tests/extraction/test_build.py` | PASSED | 2026-08-13 |
+| 12 | The selected corpus can be extracted from a real multistream dump | `tests/extraction/test_multistream.py` | PASSED | 2026-08-13 |
+| 13 | Canonical JSONL and Markdown exports are produced | `tests/exporters/` + `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
+| 14 | The build can resume after interruption | `tests/extraction/test_build_resume_bugs.py` + `tests/jobs/test_state.py` | PASSED | 2026-08-14 |
+| 15 | The original source remains unchanged after ordinary build | `tests/safety/test_destructive_invariants.py::test_build_never_deletes_source` | PASSED | 2026-08-14 |
+| 16 | Source purge cannot occur after a failed validation or changed source | `tests/safety/test_destructive_invariants.py` (4 blocking tests) | PASSED | 2026-08-14 |
+| 17 | A successful purge clearly reports what was removed and what was retained | `tests/safety/test_destructive_invariants.py::test_purge_removes_only_planned_files` | PASSED | 2026-08-14 |
+| 18 | Every exported article carries source/attribution metadata | `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
+| 19 | CI passes on macOS, Windows, and Linux | Remote CI runner execution | NOT_RUN | - |
+| 20 | A clean machine does not need Python/Node/Rust installed to run the desktop release | Packaged sidecar install test | FAILED | - |
 
 ## Smoke Test Runbook (`simplewiki`)
 To run an end-to-end smoke test on a small real-world Wikimedia dump (`simplewiki`):

@@ -43,7 +43,7 @@ def export_jsonl(
 
     staging_dir = out_dir.parent / f".staging-jsonl-{os.getpid()}"
     if staging_dir.exists():
-        shutil.rmtree(staging_dir, ignore_errors=True)
+        shutil.rmtree(staging_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
     staging_dir.mkdir(parents=True, exist_ok=True)
 
     jsonl_filename = "corpus.normalized.jsonl" if normalized else "corpus.jsonl"
@@ -73,7 +73,7 @@ def export_jsonl(
     write_attribution(records, staging_dir)
 
     if out_dir.exists():
-        shutil.rmtree(out_dir, ignore_errors=True)
+        shutil.rmtree(out_dir, ignore_errors=True)  # noqa: TID251  # staging cleanup
     os.replace(staging_dir, out_dir)
 
     return {

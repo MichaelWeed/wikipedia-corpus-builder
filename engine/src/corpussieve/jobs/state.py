@@ -39,7 +39,12 @@ VALID_TRANSITIONS: dict[JobState, set[JobState]] = {
         JobState.CANCELLED,
     },
     JobState.PREVIEWED: {JobState.BUILDING, JobState.FAILED, JobState.CANCELLED},
-    JobState.BUILDING: {JobState.BUILD_SUCCEEDED, JobState.FAILED, JobState.CANCELLED},
+    JobState.BUILDING: {
+        JobState.BUILDING,
+        JobState.BUILD_SUCCEEDED,
+        JobState.FAILED,
+        JobState.CANCELLED,
+    },
     JobState.BUILD_SUCCEEDED: {JobState.VALIDATING, JobState.FAILED, JobState.CANCELLED},
     JobState.VALIDATING: {JobState.VALIDATED, JobState.FAILED, JobState.CANCELLED},
     JobState.VALIDATED: {
@@ -50,8 +55,8 @@ VALID_TRANSITIONS: dict[JobState, set[JobState]] = {
     },
     JobState.EXPORTED: {JobState.SOURCE_PURGED, JobState.FAILED, JobState.CANCELLED},
     JobState.SOURCE_PURGED: {JobState.FAILED, JobState.CANCELLED},
-    JobState.FAILED: set(),
-    JobState.CANCELLED: set(),
+    JobState.FAILED: {JobState.BUILDING, JobState.FAILED, JobState.CANCELLED},
+    JobState.CANCELLED: {JobState.BUILDING, JobState.FAILED, JobState.CANCELLED},
 }
 
 
@@ -212,3 +217,17 @@ class JobStore:
         if not row:
             return None
         return dict(row)
+
+    def get_job(self, job_id: str) -> dict[str, Any] | None:
+        """Return job dictionary by job_id, or None."""
+        cursor = self._conn.execute("SELECT * FROM jobs WHERE job_id = ?", (job_id,))
+        row = cursor.fetchone()
+        return dict(row) if row else None
+
+    def latest_job(self, kind: str) -> dict[str, Any] | None:
+        """Return latest job dictionary for kind, or None."""
+        cursor = self._conn.execute(
+            "SELECT * FROM jobs WHERE kind = ? ORDER BY updated_at DESC LIMIT 1", (kind,)
+        )
+        row = cursor.fetchone()
+        return dict(row) if row else None

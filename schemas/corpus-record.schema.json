@@ -4,8 +4,11 @@
       "additionalProperties": false,
       "properties": {
         "format": {
-          "const": "wikitext",
           "default": "wikitext",
+          "enum": [
+            "wikitext",
+            "markdown"
+          ],
           "title": "Format",
           "type": "string"
         },

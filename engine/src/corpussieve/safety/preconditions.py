@@ -1,4 +1,5 @@
 import json
+import logging
 from pathlib import Path
 from typing import Any
 
@@ -9,6 +10,8 @@ from corpussieve.domain.lock_build import read_lock
 from corpussieve.jobs.state import JobStore
 from corpussieve.sources.wikimedia.adapter import WikimediaXmlDumpAdapter
 from corpussieve.validation.validate import validate_corpus
+
+logger = logging.getLogger(__name__)
 
 
 class PurgeBlocker(BaseModel):
@@ -105,6 +108,20 @@ def check_purge_preconditions(
 
     # 3. Source re-fingerprint match check
     source_dir = p_dir / "source"
+    proj_file = p_dir / "project.yaml"
+    if proj_file.exists():
+        try:
+            import yaml  # type: ignore[import-untyped]
+
+            data = yaml.safe_load(proj_file.read_text(encoding="utf-8"))
+            if data and isinstance(data, dict) and data.get("source_paths"):
+                sp = data["source_paths"]
+                if isinstance(sp, list) and sp:
+                    raw_sp = Path(sp[0])
+                    source_dir = raw_sp if raw_sp.is_absolute() else (p_dir / raw_sp).resolve()
+        except Exception as exc:
+            logger.warning("Failed to read project.yaml source_paths: %s", exc)
+
     if not source_dir.exists():
         blockers.append(
             PurgeBlocker(
@@ -156,11 +173,46 @@ def check_purge_preconditions(
             )
 
     # 5. Path safety checks
+    resolved_source_dir = source_dir.resolve()
+    if (
+        target_corpus == resolved_source_dir
+        or target_corpus in resolved_source_dir.parents
+        or resolved_source_dir in target_corpus.parents
+    ):
+        blockers.append(
+            PurgeBlocker(
+                code="output_inside_target",
+                message="Output directory overlaps with source delete targets.",
+            )
+        )
+
     delete_files: list[Path] = []
     total_bytes = 0
-    for item in source_dir.rglob("*"):
-        if item.is_file():
+    items_to_check = list(source_dir.rglob("*")) if source_dir.is_dir() else [source_dir]
+    for item in items_to_check:
+        if item.is_file() or item.is_symlink():
             resolved_item = item.resolve()
+
+            # Symlink escape check
+            msg = f"Symlink '{item}' resolves outside source scope ({resolved_item})."
+            try:
+                if not resolved_item.is_relative_to(resolved_source_dir):
+                    blockers.append(
+                        PurgeBlocker(
+                            code="symlink_escape_scope",
+                            message=msg,
+                        )
+                    )
+                    break
+            except ValueError:
+                blockers.append(
+                    PurgeBlocker(
+                        code="symlink_escape_scope",
+                        message=msg,
+                    )
+                )
+                break
+
             # Canonical check: output dir must not be inside target and target not inside output
             if target_corpus in resolved_item.parents or resolved_item in target_corpus.parents:
                 blockers.append(
@@ -170,8 +222,10 @@ def check_purge_preconditions(
                     )
                 )
                 break
+
             delete_files.append(resolved_item)
-            total_bytes += resolved_item.stat().st_size
+            if resolved_item.exists():
+                total_bytes += resolved_item.stat().st_size
 
     if blockers:
         return None, blockers

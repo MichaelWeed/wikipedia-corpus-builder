@@ -52,18 +52,21 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 
 ## P6 Desktop application
 - [x] P6.1 — 2026-08-13 — Engine protocol v1 spec + NDJSON server engine serve completed
-- [x] P6.2 — 2026-08-13 — Tauri v2 + React 18 desktop scaffold + typed EngineClient completed
-- [x] P6.3 — 2026-08-13 — Wizard framework + Project and Source inspection screens completed
-- [x] P6.4 — 2026-08-13 — Model connection and AI provider selection screen completed
-- [x] P6.5 — 2026-08-13 — Domain definition, clarification, resolution & preview screens completed
-- [x] P6.6 — 2026-08-13 — Build progress, validation dashboard, export & log viewer screens completed
-- [x] P6.7 — 2026-08-13 — Desktop vitest component & protocol client test suite completed
+- [ ] P6.2 — Tauri v2 + React 18 desktop scaffold + typed EngineClient (sidecar packaging incomplete)
+- [x] P6.3 — 2026-08-14 — Wizard framework + Project and Source inspection screens completed
+- [x] P6.4 — 2026-08-14 — Model connection and AI provider selection screen completed
+- [x] P6.5 — 2026-08-14 — Domain definition, clarification, resolution & preview screens completed
+- [x] P6.6 — 2026-08-14 — Build progress, validation dashboard, export & log viewer screens completed
+- [x] P6.7 — 2026-08-14 — Desktop vitest component & protocol client test suite completed
 
 ## P7 Safe purge & release
 - [x] P7.1 — 2026-08-13 — Purge preconditions (7 design §16.2 gates) + execution engine completed
 - [x] P7.2 — 2026-08-13 — CLI corpussieve source purge + engine protocol purge RPCs completed
-- [x] P7.3 — 2026-08-13 — Destructive-safety invariant test suite completed
-- [x] P7.4 — 2026-08-13 — GitHub release workflow, RELEASING.md & v0.1 acceptance matrix completed
+- [x] P7.3 — 2026-08-14 — Destructive-safety invariant test suite completed (7 invariant tests green)
+- [ ] P7.4 — GitHub release workflow, RELEASING.md & v0.1 acceptance matrix (CI not run, acceptance matrix not yet honest)
 
 ## Deviations
-(record any spec deviation here: chunk ID, what changed, why, smallest workaround)
+- P0.3 / P5.1: `CorpusContent.format` contract widened to include `"markdown"` in addition to `"wikitext"` to support post-normalization exports.
+- P4.1 / state.py: `VALID_TRANSITIONS` expanded to allow `BUILDING->BUILDING` (resume interrupted job) and `FAILED->BUILDING` (retry after failure). Design §22 state graph is a linear chain and does not specify lateral transitions; these additions are necessary for the resume contract (design §23) but alter the frozen graph.
+- P4.6: Subcommand naming exposed as `corpussieve build run` and `corpussieve validate run` for group consistency.
+- P6.7: Desktop E2E verified via Vitest and mock engine client suite.
