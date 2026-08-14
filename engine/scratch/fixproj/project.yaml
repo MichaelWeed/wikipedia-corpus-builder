@@ -1,0 +1,13 @@
+schema_version: 1
+project_id: proj-fixwiki
+name: fixwiki Project
+created_at: '2026-08-14T05:12:02.464079Z'
+source_paths:
+- tests/fixtures/fixwiki
+source_adapter: wikimedia_xml_dump
+source_fingerprint: 826f9cc72f3c4180a7aa6acd05a1591fd88126876b599ea1f70c01b368b8f977
+domain_path: domain.yaml
+lock_path: domain.lock.json
+output_dir: output
+provider_ref: null
+job_state: METADATA_READY

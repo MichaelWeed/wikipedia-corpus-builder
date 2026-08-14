@@ -1,6 +1,8 @@
 import typer
 
 from corpussieve import __version__
+from corpussieve.cli.metadata_cmds import metadata_app
+from corpussieve.cli.source_cmds import source_app
 
 app = typer.Typer(
     name="corpussieve",
@@ -9,8 +11,6 @@ app = typer.Typer(
 )
 
 project_app = typer.Typer(help="Manage CorpusSieve projects")
-source_app = typer.Typer(help="Inspect and manage dump sources")
-metadata_app = typer.Typer(help="Build and search source metadata indices")
 model_app = typer.Typer(help="Detect and test local AI providers")
 domain_app = typer.Typer(help="Create, compile, audit, and preview domain definitions")
 build_app = typer.Typer(help="Run and manage extraction builds")
