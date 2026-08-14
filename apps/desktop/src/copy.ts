@@ -1,0 +1,25 @@
+export const UX_COPY = {
+  appTitle: "CorpusSieve",
+  tagline: "Deterministic domain-specific Wikitext corpus compiler",
+  wizard: {
+    stepProject: "1. Project",
+    stepSource: "2. Source",
+    stepModel: "3. Model",
+    stepDomain: "4. Domain",
+    stepPreview: "5. Preview",
+    stepBuild: "6. Build & Export",
+    btnNext: "Next",
+    btnBack: "Back",
+    btnCancel: "Cancel",
+    btnCompile: "Compile Domain",
+    btnBuild: "Run Build",
+    btnExportMarkdown: "Export Markdown",
+    btnExportJsonl: "Export JSONL",
+    btnSkipModel: "Skip AI Assistance",
+  },
+  status: {
+    connected: "Engine connected (v0.1.0)",
+    connecting: "Connecting to Python engine sidecar...",
+    error: "Engine communication error",
+  },
+};

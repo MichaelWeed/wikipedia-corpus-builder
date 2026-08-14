@@ -1,6 +1,7 @@
 import typer
 
 from corpussieve import __version__
+from corpussieve.api.server import serve_stdio
 from corpussieve.cli.build_cmds import build_app, validate_app
 from corpussieve.cli.domain_cmds import domain_app
 from corpussieve.cli.export_cmds import export_app
@@ -15,6 +16,14 @@ app = typer.Typer(
 )
 
 project_app = typer.Typer(help="Manage CorpusSieve projects")
+engine_app = typer.Typer(help="Internal sidecar engine commands", hidden=True)
+
+
+@engine_app.command("serve")
+def engine_serve() -> None:
+    """Run JSON-RPC sidecar server over stdio."""
+    serve_stdio()
+
 
 app.add_typer(project_app, name="project")
 app.add_typer(source_app, name="source")
@@ -24,6 +33,7 @@ app.add_typer(domain_app, name="domain")
 app.add_typer(build_app, name="build")
 app.add_typer(validate_app, name="validate")
 app.add_typer(export_app, name="export")
+app.add_typer(engine_app, name="engine")
 
 
 def version_callback(value: bool) -> None:
@@ -48,3 +58,7 @@ def main(
 
 def app_entry() -> None:
     app()
+
+
+if __name__ == "__main__":
+    app_entry()

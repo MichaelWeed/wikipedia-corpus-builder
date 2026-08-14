@@ -51,13 +51,13 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P5.4 — 2026-08-13 — CLI corpussieve export markdown/jsonl + AnythingLLM ingestion guide completed
 
 ## P6 Desktop application
-- [ ] P6.1 Engine protocol v1 (spec + Python server)
-- [ ] P6.2 Tauri scaffold + sidecar wiring
-- [ ] P6.3 Wizard: project + source screens
-- [ ] P6.4 Wizard: model connect screens
-- [ ] P6.5 Wizard: domain define/clarify/resolve/preview screens
-- [ ] P6.6 Build/validate/export screens + progress + log viewer
-- [ ] P6.7 Desktop E2E tests (mocked engine)
+- [x] P6.1 — 2026-08-13 — Engine protocol v1 spec + NDJSON server engine serve completed
+- [x] P6.2 — 2026-08-13 — Tauri v2 + React 18 desktop scaffold + typed EngineClient completed
+- [x] P6.3 — 2026-08-13 — Wizard framework + Project and Source inspection screens completed
+- [x] P6.4 — 2026-08-13 — Model connection and AI provider selection screen completed
+- [x] P6.5 — 2026-08-13 — Domain definition, clarification, resolution & preview screens completed
+- [x] P6.6 — 2026-08-13 — Build progress, validation dashboard, export & log viewer screens completed
+- [x] P6.7 — 2026-08-13 — Desktop vitest component & protocol client test suite completed
 
 ## P7 Safe purge & release
 - [ ] P7.1 Purge preconditions + executor

@@ -35,14 +35,14 @@ def slugify(title: str) -> str:
     # 2. Replace non-alphanumeric/dot/underscore/dash with hyphen
     cleaned = re.sub(r"[^A-Za-z0-9._-]", "-", norm)
 
-    # 3. Collapse multiple hyphens & strip leading/trailing dots and dashes
-    collapsed = re.sub(r"-+", "-", cleaned).strip(".-")
+    # 3. Collapse multiple hyphens & strip leading/trailing dots, dashes, and underscores
+    collapsed = re.sub(r"-+", "-", cleaned).strip("._-")
 
     if not collapsed:
         collapsed = "untitled"
 
     # 4. Truncate to max 80 chars
-    truncated = collapsed[:80].rstrip(".-")
+    truncated = collapsed[:80].rstrip("._-")
 
     # 5. Check Windows reserved names
     upper_base = truncated.upper()

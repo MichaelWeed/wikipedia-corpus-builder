@@ -1,0 +1,197 @@
+{
+  "title": "EngineProtocolSchema",
+  "request": {
+    "additionalProperties": false,
+    "properties": {
+      "jsonrpc": {
+        "const": "2.0",
+        "default": "2.0",
+        "title": "Jsonrpc",
+        "type": "string"
+      },
+      "id": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "method": {
+        "title": "Method",
+        "type": "string"
+      },
+      "params": {
+        "additionalProperties": true,
+        "default": {},
+        "title": "Params",
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "title": "JsonRpcRequest",
+    "type": "object"
+  },
+  "response": {
+    "$defs": {
+      "ErrorCode": {
+        "enum": [
+          "SOURCE_UNSUPPORTED",
+          "SOURCE_COMPANION_MISSING",
+          "SOURCE_CHECKSUM_MISMATCH",
+          "METADATA_PARSE_FAILED",
+          "MODEL_UNREACHABLE",
+          "MODEL_AUTH_FAILED",
+          "MODEL_SCHEMA_TEST_FAILED",
+          "DOMAIN_ROOT_UNRESOLVED",
+          "DOMAIN_RUNAWAY_GROWTH",
+          "DOMAIN_REVIEW_REQUIRED",
+          "EXTRACTION_PARSE_FAILED",
+          "OUTPUT_DISK_INSUFFICIENT",
+          "VALIDATION_FAILED",
+          "PURGE_SOURCE_CHANGED",
+          "PURGE_OUTPUT_UNVERIFIED",
+          "INTERNAL_ERROR"
+        ],
+        "title": "ErrorCode",
+        "type": "string"
+      },
+      "JsonRpcError": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "integer"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "data": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/JsonRpcErrorDetail"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "default": null
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "JsonRpcError",
+        "type": "object"
+      },
+      "JsonRpcErrorDetail": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {
+            "$ref": "#/$defs/ErrorCode"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "detail": {
+            "additionalProperties": true,
+            "default": {},
+            "title": "Detail",
+            "type": "object"
+          }
+        },
+        "required": [
+          "code",
+          "message"
+        ],
+        "title": "JsonRpcErrorDetail",
+        "type": "object"
+      }
+    },
+    "additionalProperties": false,
+    "properties": {
+      "jsonrpc": {
+        "const": "2.0",
+        "default": "2.0",
+        "title": "Jsonrpc",
+        "type": "string"
+      },
+      "id": {
+        "anyOf": [
+          {
+            "type": "integer"
+          },
+          {
+            "type": "string"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Id"
+      },
+      "result": {
+        "anyOf": [
+          {},
+          {
+            "type": "null"
+          }
+        ],
+        "default": null,
+        "title": "Result"
+      },
+      "error": {
+        "anyOf": [
+          {
+            "$ref": "#/$defs/JsonRpcError"
+          },
+          {
+            "type": "null"
+          }
+        ],
+        "default": null
+      }
+    },
+    "title": "JsonRpcResponse",
+    "type": "object"
+  },
+  "notification": {
+    "additionalProperties": false,
+    "properties": {
+      "jsonrpc": {
+        "const": "2.0",
+        "default": "2.0",
+        "title": "Jsonrpc",
+        "type": "string"
+      },
+      "method": {
+        "title": "Method",
+        "type": "string"
+      },
+      "params": {
+        "additionalProperties": true,
+        "default": {},
+        "title": "Params",
+        "type": "object"
+      }
+    },
+    "required": [
+      "method"
+    ],
+    "title": "JsonRpcNotification",
+    "type": "object"
+  }
+}
