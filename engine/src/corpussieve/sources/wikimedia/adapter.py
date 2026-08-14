@@ -126,7 +126,9 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         db_path: Path,
         progress: Callable[[ProgressEvent], None] | None = None,
     ) -> None:
-        raise NotImplementedError("Metadata index build will be implemented in P1.4")
+        from corpussieve.metadata.build import build_metadata_index as do_build
+
+        do_build(self, db_path, progress)
 
     def enumerate_pages(self) -> Iterator[RawPage]:
         raise NotImplementedError("Page enumeration will be implemented in P4")
