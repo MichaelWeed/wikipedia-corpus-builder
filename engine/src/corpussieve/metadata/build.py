@@ -41,7 +41,9 @@ def build_metadata_index(
             "Source adapter does not support file inspection for metadata build.",
         )
 
-    locate_fn = getattr(adapter, "_locate_files")
+    locate_fn: Callable[[], tuple[dict[str, Path], str, str, str]] = getattr(
+        adapter, "_locate_files"
+    )
     kind_to_path, _, _, _ = locate_fn()
     page_sql_path = kind_to_path["page.sql.gz"]
     cl_sql_path = kind_to_path["categorylinks.sql.gz"]
