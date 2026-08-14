@@ -29,10 +29,10 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P2.7 — 2026-08-13 — CLI commands domain compile, domain audit, domain preview completed
 
 ## P3 Local AI assistance
-- [ ] P3.1 ModelProvider interface + provider registry
-- [ ] P3.2 OllamaProvider
-- [ ] P3.3 LMStudioProvider
-- [ ] P3.4 Capability test + `model detect` / `model test` CLI
+- [x] P3.1 — 2026-08-13 — ModelProvider interface & provider registry completed
+- [x] P3.2 — 2026-08-13 — OllamaProvider adapter completed
+- [x] P3.3 — 2026-08-13 — LMStudioProvider adapter completed
+- [x] P3.4 — 2026-08-13 — Capability runner & model CLI completed
 - [ ] P3.5 Intent→facets + boundary questions
 - [ ] P3.6 Ambiguous-branch review + decision cache
 
