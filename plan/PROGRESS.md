@@ -26,7 +26,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P2.4 — 2026-08-13 — Article selection & zstd compressed manifest generator completed
 - [x] P2.5 — 2026-08-13 — Deterministic domain lock generator & verifier completed
 - [x] P2.6 — 2026-08-13 — Domain preview metrics & page explanation audit API completed
-- [ ] P2.7 CLI: `domain compile`, `domain audit`, `domain preview`
+- [x] P2.7 — 2026-08-13 — CLI commands domain compile, domain audit, domain preview completed
 
 ## P3 Local AI assistance
 - [ ] P3.1 ModelProvider interface + provider registry
