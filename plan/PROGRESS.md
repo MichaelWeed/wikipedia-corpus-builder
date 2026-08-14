@@ -12,7 +12,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P0.6 — 2026-08-13 — ADRs 0001–0006 architecture decision records completed
 
 ## P1 Source inspection & metadata index
-- [ ] P1.1 Source layer skeleton + filename/dump-type detection
+- [x] P1.1 — 2026-08-13 — Source layer skeleton & Wikimedia dump naming parser completed
 - [ ] P1.2 Source fingerprinting
 - [ ] P1.3 SQL dump parser (page, categorylinks)
 - [ ] P1.4 Metadata SQLite index build
