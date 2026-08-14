@@ -36,7 +36,7 @@ def test_cli_domain_compile_preview_audit_flow(tmp_path: Path) -> None:
             "--id",
             "video-games",
             "--name",
-            "Video Games",
+            "Video_games",
             "--language",
             "en",
             "--project-dir",
