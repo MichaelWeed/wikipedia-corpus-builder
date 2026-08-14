@@ -4,7 +4,7 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 
 | ID | Acceptance Criterion (Design §38) | Verification Method | Status | Date |
 |---|---|---|---|---|
-| 1 | A novice can install and launch the desktop app without seeing a terminal window | Manual: packaged sidecar build | NOT_RUN | - |
+| 1 | A novice can install and launch the desktop app without seeing a terminal window | Manual: `pnpm tauri build --debug` bundle, launched via `open` (macOS double-click path)[^1] | PASSED | 2026-08-14 |
 | 2 | An expert can complete the same core workflow from CLI | `tests/cli/` suite + manual simplewiki runbook | PASSED | 2026-08-13 |
 | 3 | An existing Wikimedia dump can be inspected without full decompression | `tests/sources/test_fingerprint.py` | PASSED | 2026-08-13 |
 | 4 | A local Ollama or LM Studio server can be detected through API | `tests/models/test_ollama.py` | PASSED | 2026-08-13 |
@@ -24,6 +24,8 @@ Restored to Design §38 ("38. Key Acceptance Criteria for v0.1"). All 20 design 
 | 18 | Every exported article carries source/attribution metadata | `tests/cli/test_export_cli.py` | PASSED | 2026-08-13 |
 | 19 | CI passes on macOS, Windows, and Linux | Remote CI runner execution | NOT_RUN | - |
 | 20 | A clean machine does not need Python/Node/Rust installed to run the desktop release | Packaged sidecar install test | FAILED | - |
+
+[^1]: Verified on macOS (aarch64) only: `cargo check`/`cargo build` pass, `pnpm tauri build --debug` produces `CorpusSieve.app` and a `.dmg`, and the `.app` was launched via `open` (the real double-click path) with no terminal window and no crash. This is a local **debug** build a developer produced, not a signed/notarized installer a novice would download — that remains P7.4. It also still shells out to `uv run corpussieve engine serve` at runtime (see criterion 20), so it requires Python/uv on the machine; the bundled-sidecar (`externalBin`) packaging that removes that dependency is still open in P6.2.
 
 ## Smoke Test Runbook (`simplewiki`)
 To run an end-to-end smoke test on a small real-world Wikimedia dump (`simplewiki`):

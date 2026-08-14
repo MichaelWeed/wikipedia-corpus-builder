@@ -35,6 +35,8 @@ yarn-debug.log*
 yarn-error.log*
 pnpm-debug.log*
 .vite/
+.env
+!.env.example
 
 # Rust / Tauri
 target/
@@ -58,3 +60,7 @@ state.sqlite
 .vscode/
 *.swp
 *.swo
+
+# Tauri build artifacts (produced by verification, not release outputs)
+apps/desktop/src-tauri/target/
+apps/desktop/src-tauri/gen/

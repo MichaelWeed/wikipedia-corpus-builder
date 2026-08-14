@@ -52,7 +52,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 
 ## P6 Desktop application
 - [x] P6.1 — 2026-08-13 — Engine protocol v1 spec + NDJSON server engine serve completed
-- [ ] P6.2 — Tauri v2 + React 18 desktop scaffold + typed EngineClient (sidecar packaging incomplete)
+- [ ] P6.2 — 2026-08-14 — Rust build fixed (missing build.rs, `rand` dep, icon assets, off-by-one engine-dir path all resolved; `cargo build` and `pnpm tauri build --debug` now produce a launchable `.app`/`.dmg`, verified via `open`). Still incomplete: no `externalBin` sidecar bundling / PyInstaller packaging — the app still shells out to `uv run` at runtime, so criterion 20 (no Python/Node/Rust needed) remains FAILED.
 - [x] P6.3 — 2026-08-14 — Wizard framework + Project and Source inspection screens completed
 - [x] P6.4 — 2026-08-14 — Model connection and AI provider selection screen completed
 - [x] P6.5 — 2026-08-14 — Domain definition, clarification, resolution & preview screens completed
@@ -70,3 +70,6 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - P4.1 / state.py: `VALID_TRANSITIONS` expanded to allow `BUILDING->BUILDING` (resume interrupted job) and `FAILED->BUILDING` (retry after failure). Design §22 state graph is a linear chain and does not specify lateral transitions; these additions are necessary for the resume contract (design §23) but alter the frozen graph.
 - P4.6: Subcommand naming exposed as `corpussieve build run` and `corpussieve validate run` for group consistency.
 - P6.7: Desktop E2E verified via Vitest and mock engine client suite.
+- P6.2: `src-tauri/src/engine.rs` dev-mode engine directory resolution was rewritten. It previously used a runtime-CWD-relative path (`../../engine`, itself off by one directory level) that silently fell back to `env::current_dir()` when not found, and read `CORPUSSIEVE_ENGINE_DIR` from a `.env` file nothing actually loaded into the Rust process. It now resolves relative to `CARGO_MANIFEST_DIR` at compile time (correct depth: `../../../engine`), fails loudly via `canonicalize()` if missing, and treats `CORPUSSIEVE_ENGINE_DIR` as an explicit runtime override only (renamed the file to `.env.example` since nothing consumes `.env` automatically; `.env` added to `.gitignore`).
+- P6.2: Added `@tauri-apps/cli` as a devDependency — `desktop.yml`'s CI step (`pnpm -C apps/desktop tauri build --debug`) referenced a `tauri` command that did not exist in `package.json` and would have failed on first CI run.
+- P6.2: Generated placeholder app icons (`icons/32x32.png`, `128x128.png`, `128x128@2x.png`, `icon.ico`, `icon.icns`) — `tauri::generate_context!()` panics at compile time without them; none existed. Cosmetic only; replace before a real release.

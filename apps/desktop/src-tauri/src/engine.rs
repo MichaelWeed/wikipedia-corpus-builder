@@ -20,20 +20,22 @@ impl Default for EngineState {
 }
 
 pub fn spawn_sidecar(_app: &AppHandle) -> Result<Child, String> {
-    // Resolve dev engine directory from environment variable or fallback to ../../engine relative path
+    // Dev-mode engine location. `CORPUSSIEVE_ENGINE_DIR` allows an explicit override
+    // (e.g. for CI or non-standard checkouts); otherwise the path is anchored to
+    // this crate's location at compile time (CARGO_MANIFEST_DIR), not the process's
+    // runtime CWD, since Tauri's dev/launch CWD is not guaranteed.
+    // Packaged releases use the bundled `externalBin` sidecar instead (P6.2 packaging),
+    // not this dev-mode `uv run` path.
     let engine_dir = if let Ok(val) = env::var("CORPUSSIEVE_ENGINE_DIR") {
         PathBuf::from(val)
     } else {
-        PathBuf::from("../../engine")
+        PathBuf::from(env!("CARGO_MANIFEST_DIR")).join("../../../engine")
     };
 
-    let cwd = if engine_dir.exists() {
-        engine_dir.canonicalize().unwrap_or(engine_dir)
-    } else {
-        env::current_dir().unwrap_or_else(|_| PathBuf::from("."))
-    };
+    let cwd = engine_dir
+        .canonicalize()
+        .map_err(|e| format!("Engine directory not found at {:?}: {}", engine_dir, e))?;
 
-    // Dev mode execution via python/uv
     let child = Command::new("uv")
         .args(["run", "corpussieve", "engine", "serve"])
         .current_dir(cwd)

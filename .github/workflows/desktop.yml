@@ -54,6 +54,10 @@ jobs:
           pnpm -C apps/desktop lint
           pnpm -C apps/desktop test
 
+      - name: Rust Compile Check
+        if: steps.check_desktop.outputs.EXISTS == 'true'
+        run: cargo check --manifest-path apps/desktop/src-tauri/Cargo.toml
+
       - name: Tauri Debug Build
         if: steps.check_desktop.outputs.EXISTS == 'true'
         run: pnpm -C apps/desktop tauri build --debug
