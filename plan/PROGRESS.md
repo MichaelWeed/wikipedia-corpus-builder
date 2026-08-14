@@ -37,12 +37,12 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P3.6 — 2026-08-13 — Ambiguous-branch review & decision cache completed
 
 ## P4 Extraction & canonical corpus
-- [ ] P4.1 Job state machine + checkpoint store
-- [ ] P4.2 Multistream index parsing + stream grouping
-- [ ] P4.3 Multistream selective extraction
-- [ ] P4.4 Sequential fallback extraction
-- [ ] P4.5 Canonical corpus writer + validation + build report
-- [ ] P4.6 CLI: `build`, `validate` + resume
+- [x] P4.1 — 2026-08-13 — Job state machine + SQLite checkpoint store completed
+- [x] P4.2 — 2026-08-13 — Multistream index parsing + stream grouping completed
+- [x] P4.3 — 2026-08-13 — Multistream selective bz2 extraction completed
+- [x] P4.4 — 2026-08-13 — Sequential streaming fallback extraction completed
+- [x] P4.5 — 2026-08-13 — Canonical corpus writer + validation + build report completed
+- [x] P4.6 — 2026-08-13 — CLI subcommands corpussieve build run and validate run + resume completed
 
 ## P5 Normalization & exports
 - [ ] P5.1 Normalizer interface + wikitext→markdown

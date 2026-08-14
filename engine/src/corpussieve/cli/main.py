@@ -1,6 +1,7 @@
 import typer
 
 from corpussieve import __version__
+from corpussieve.cli.build_cmds import build_app, validate_app
 from corpussieve.cli.domain_cmds import domain_app
 from corpussieve.cli.metadata_cmds import metadata_app
 from corpussieve.cli.model_cmds import model_app
@@ -13,8 +14,6 @@ app = typer.Typer(
 )
 
 project_app = typer.Typer(help="Manage CorpusSieve projects")
-build_app = typer.Typer(help="Run and manage extraction builds")
-validate_app = typer.Typer(help="Validate canonical corpora")
 export_app = typer.Typer(help="Export corpora to Markdown or JSONL")
 
 app.add_typer(project_app, name="project")

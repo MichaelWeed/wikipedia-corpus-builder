@@ -5,6 +5,8 @@ from typing import Any
 from corpussieve.contracts.errors import CorpusSieveError, ErrorCode
 from corpussieve.contracts.events import ProgressEvent
 from corpussieve.contracts.source import SourceFingerprint, SourceInspection
+from corpussieve.extraction.multistream import extract_multistream
+from corpussieve.extraction.sequential import extract_sequential
 from corpussieve.sources.base import RawPage, SourceAdapter
 from corpussieve.sources.fingerprint import fingerprint_files
 from corpussieve.sources.wikimedia.naming import parse_dump_filename
@@ -17,10 +19,7 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         self.source_path = Path(source).resolve()
 
     def _locate_files(self) -> tuple[dict[str, Path], str, str, str]:
-        """Locate recognizable dump files in source directory or file.
-
-        Returns (kind_to_path, project, language, dump_date).
-        """
+        """Locate recognizable dump files in source directory or file."""
         if not self.source_path.exists():
             raise CorpusSieveError(
                 ErrorCode.SOURCE_UNSUPPORTED,
@@ -43,7 +42,6 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
                 f"No recognized Wikimedia dump files found in '{search_dir}'.",
             )
 
-        # Filter candidates matching the target file if source_path was a single file
         if self.source_path.is_file():
             target_parts = parse_dump_filename(self.source_path.name)
             if target_parts:
@@ -59,7 +57,6 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
                 f"Source file '{self.source_path}' is not a recognized dump file.",
             )
 
-        # Group by kind for the primary project/date set
         primary_proj = candidates[0][1]
         primary_date = candidates[0][3]
         primary_lang = candidates[0][2]
@@ -81,7 +78,7 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         return kind_to_path, primary_proj, primary_lang, primary_date
 
     def inspect(self) -> SourceInspection:
-        kind_to_path, project, lang, dump_date = self._locate_files()
+        kind_to_path, _project, _lang, _dump_date = self._locate_files()
         warnings: list[str] = []
 
         has_index = "pages-articles-multistream-index.txt.bz2" in kind_to_path
@@ -131,14 +128,31 @@ class WikimediaXmlDumpAdapter(SourceAdapter):
         do_build(self, db_path, progress)
 
     def enumerate_pages(self) -> Iterator[RawPage]:
-        raise NotImplementedError("Page enumeration will be implemented in P4")
+        kind_to_path, _project, _lang, _dump_date = self._locate_files()
+        dump_file = (
+            kind_to_path.get("pages-articles-multistream.xml.bz2")
+            or kind_to_path["pages-articles.xml.bz2"]
+        )
+        yield from extract_sequential(dump_file, selected_ids=set(range(1, 10**9)))
 
     def extract_selected_pages(
         self,
         page_ids: set[int],
-        progress: Callable[[ProgressEvent], None] | None = None,
+        _progress: Callable[[ProgressEvent], None] | None = None,
+        job_store: Any = None,
+        job_id: str | None = None,
     ) -> Iterator[RawPage]:
-        raise NotImplementedError("Selective page extraction will be implemented in P4")
+        kind_to_path, _project, _lang, _dump_date = self._locate_files()
+        ms_xml = kind_to_path.get("pages-articles-multistream.xml.bz2")
+        ms_idx = kind_to_path.get("pages-articles-multistream-index.txt.bz2")
+
+        if ms_xml and ms_idx:
+            yield from extract_multistream(
+                ms_xml, ms_idx, page_ids, job_store=job_store, job_id=job_id
+            )
+        else:
+            dump_file = ms_xml or kind_to_path["pages-articles.xml.bz2"]
+            yield from extract_sequential(dump_file, page_ids, job_store=job_store, job_id=job_id)
 
     def source_metadata(self) -> dict[str, Any]:
         kind_to_path, project, lang, dump_date = self._locate_files()
