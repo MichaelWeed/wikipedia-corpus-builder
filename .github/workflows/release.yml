@@ -77,6 +77,29 @@ jobs:
       - name: Install desktop dependencies
         run: pnpm -C apps/desktop install
 
+      # Runs here, before the Tauri/cargo/PyInstaller builds, on purpose: it
+      # only needs the installed Node dependency tree, nothing later builds
+      # produce. Running it early avoids a real failure found on
+      # ubuntu-latest -- by the time this used to run *after* the full Tauri
+      # release build, a second full `cargo install cargo-cyclonedx` compile,
+      # and the PyInstaller sidecar build, the runner's disk was full enough
+      # that pnpm's own bookkeeping writes (even for a read-mostly `licenses
+      # list`) failed with ERR_PNPM_MISSING_PACKAGE_INDEX_FILE. That error
+      # prints to *stdout*, which the `>` redirect below silently buried in
+      # node-dependencies.json -- reproduced by deliberately filling a disk
+      # locally after real CI failed the same way twice (see
+      # qa/FINDINGS.md #15). The `|| { cat ...; exit 1; }` guards against
+      # exactly that class of silent failure recurring in some other form.
+      # @cyclonedx/cyclonedx-npm shells out to `npm ls`, which doesn't
+      # understand pnpm's node_modules layout on this project (verified
+      # locally: it errors and, worse, corrupted this repo's committed
+      # pnpm-lock.yaml when a related `pnpm import` was attempted). pnpm's
+      # own license report is not CycloneDX, but is accurate and safe.
+      - name: SBOM - Node dependencies (license report)
+        if: runner.os == 'Linux'
+        run: |
+          pnpm -C apps/desktop licenses list --json > apps/desktop/node-dependencies.json || { cat apps/desktop/node-dependencies.json; exit 1; }
+
       # Tauri's CLI signs/notarizes automatically when these are present and
       # produces an unsigned (macOS: ad-hoc signed) build when they aren't --
       # see docs/RELEASING.md for what to provision and how. This half of the
@@ -132,15 +155,6 @@ jobs:
         run: |
           uv export --no-dev --no-emit-project --format requirements-txt -o requirements-sbom.txt
           uvx --from cyclonedx-bom cyclonedx-py requirements requirements-sbom.txt -o engine-sbom.cdx.json --of JSON
-
-      - name: SBOM - Node dependencies (license report)
-        # @cyclonedx/cyclonedx-npm shells out to `npm ls`, which doesn't
-        # understand pnpm's node_modules layout on this project (verified
-        # locally: it errors and, worse, corrupted this repo's committed
-        # pnpm-lock.yaml when a related `pnpm import` was attempted). pnpm's
-        # own license report is not CycloneDX, but is accurate and safe.
-        if: runner.os == 'Linux'
-        run: pnpm -C apps/desktop licenses list --json > apps/desktop/node-dependencies.json
 
       - name: Checksums
         shell: bash

@@ -499,22 +499,48 @@ env-var-presence codepath.
 script (`shell: bash`, so it's identical across all 3 OSes including
 Windows, which defaults to pwsh) that `unset`s the Apple/Windows signing
 vars when their certificate var is empty, before invoking `pnpm tauri
-build`. Not yet re-verified against a real CI run — that's the next step
-(a `v0.1.0-rc2` tag).
+build`. **Verified**: pushing `v0.1.0-rc2` produced a fully green
+`macos-latest` job (real `security import` no longer attempted; the "not
+set -- unsigned/ad-hoc-signed" warning fires as designed).
 
-**Also observed, not treated as a workflow bug**: the same run's
-`ubuntu-latest` job failed separately at "SBOM - Node dependencies (license
-report)" (`pnpm licenses list --json`) — exit code 1, zero stdout and zero
-stderr captured, in under 0.5s. Could not reproduce with a matching pnpm
-version (9.15.9) and a fresh `pnpm install`, either locally on macOS or in
-a clean `node:20-bookworm` Docker container — both produced the full
-license report successfully. The same run's own annotations show GitHub's
-Actions cache service returning `400` on restore and failing to save on
-this and the Windows job ("Our services aren't available right now"),
-consistent with a concurrent GitHub-side infrastructure incident rather
-than a deterministic bug in this workflow. Left as-is pending a second real
-run; if it recurs on `v0.1.0-rc2` it gets its own numbered finding instead
-of being dismissed as flakiness a second time.
+---
+
+## 16. MEDIUM (release pipeline, Linux-specific) — `release.yml`'s Node license SBOM step failed on ubuntu-latest from real disk exhaustion, and hid its own error
+
+**Discovered**: the same `v0.1.0-rc1` run that surfaced #15 also failed
+`ubuntu-latest` at "SBOM - Node dependencies (license report)" (`pnpm
+-C apps/desktop licenses list --json > apps/desktop/node-dependencies.json`)
+— exit code 1, zero stdout and zero stderr visible in the CI log, in under
+0.5s. Initially suspected as GitHub-side flakiness (the same run's
+annotations show the Actions cache service returning `400` on restore and
+failing to save), since a matching pnpm version (9.15.9) with a fresh
+install reproduced nothing — neither locally on macOS nor in a clean
+`node:20-bookworm` Docker container. **It recurred identically on
+`v0.1.0-rc2`** (same step, same instant failure, same silence) after the
+#15 fix was confirmed working on the very same run — ruling out flakiness.
+
+**Root cause, confirmed by deliberate reproduction**: by the time this step
+used to run, `ubuntu-latest` had already done a full non-debug `pnpm tauri
+build` (Rust release compile), a *second* full cargo compile installing
+`cargo-cyclonedx`, and a PyInstaller sidecar build — the cumulative disk
+footprint fills the runner's limited SSD. `pnpm licenses list` does
+bookkeeping writes even for what looks like a read-only report, and once
+the disk was full it failed with `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE`.
+Reproduced locally by installing the same dependency tree with pnpm 9.15.9
+inside a Docker container with its filesystem deliberately filled to <5 KB
+free: identical error code, identical near-instant timing, identical *zero
+stderr* — because pnpm writes this particular error to **stdout**, and the
+step's own `> node-dependencies.json` redirect silently buried it in a file
+nothing ever read, in both the real CI runs and the local repro.
+
+**Fixed**: moved the step to run immediately after "Install desktop
+dependencies", before any of the Tauri/cargo/PyInstaller builds — it only
+ever needed the installed Node dependency tree, not any build artifact, so
+there was never a real reason for it to run last. Also changed the command
+to `... || { cat apps/desktop/node-dependencies.json; exit 1; }` so a
+future failure of this kind prints its own (stdout-only) error into the CI
+log instead of silently disappearing into an unread file. Not yet
+re-verified against a real CI run.
 
 ---
 
