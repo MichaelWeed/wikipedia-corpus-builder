@@ -26,8 +26,10 @@ yourself unless you want to; flagging it accurately is the useful part.
 This exercises the same flow `qa/smoke_real_dump.sh` automates, by hand, so
 you see the actual output at each step instead of a pass/fail summary.
 
+The first command downloads the `simplewiki` dump set (~470 MB, one-time,
+resumable if interrupted):
+
 ```bash
-# ~470 MB, one-time download, resumable
 ./qa/fetch_dumps.sh simplewiki
 
 cd engine
