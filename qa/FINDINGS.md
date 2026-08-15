@@ -472,6 +472,52 @@ Windows CI run confirms it.
 
 ---
 
+## 15. MEDIUM (release pipeline) — `release.yml`'s macOS build always failed codesigning, even with no signing secrets configured
+
+**Discovered** on the *first-ever* real run of `release.yml` (2026-08-14),
+triggered by pushing the `v0.1.0-rc1` tag: `windows-latest` went fully
+green, but `macos-latest` failed at "Build desktop installers (Tauri)":
+`Error failed to bundle project: failed codesign application: failed to run
+command security import: failed to import keychain certificate`. No Apple
+signing secrets are configured on this repo (`gh secret list` is empty), so
+this should have hit the "unsigned/ad-hoc-signed" degraded path the
+workflow's own comments and warning step assume exists.
+
+**Root cause**: GitHub's `secrets.*` context evaluates to `""` (empty
+string), not unset, for a secret that doesn't exist. The step set
+`APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}` unconditionally, so
+the env var was always *present* in the job, just empty. Tauri v2's
+bundler decides whether to codesign based on whether `APPLE_CERTIFICATE`
+is set at all, not whether it's non-empty — so it always attempted to
+`security import` an empty certificate into the keychain and always failed
+the build, regardless of whether real secrets were ever provisioned. This
+was invisible until a real tag push actually ran the job; nothing in local
+testing (verified only via `tauri build --debug`, per P7.4) exercises this
+env-var-presence codepath.
+
+**Fixed**: `Build desktop installers (Tauri)` now runs as a small bash
+script (`shell: bash`, so it's identical across all 3 OSes including
+Windows, which defaults to pwsh) that `unset`s the Apple/Windows signing
+vars when their certificate var is empty, before invoking `pnpm tauri
+build`. Not yet re-verified against a real CI run — that's the next step
+(a `v0.1.0-rc2` tag).
+
+**Also observed, not treated as a workflow bug**: the same run's
+`ubuntu-latest` job failed separately at "SBOM - Node dependencies (license
+report)" (`pnpm licenses list --json`) — exit code 1, zero stdout and zero
+stderr captured, in under 0.5s. Could not reproduce with a matching pnpm
+version (9.15.9) and a fresh `pnpm install`, either locally on macOS or in
+a clean `node:20-bookworm` Docker container — both produced the full
+license report successfully. The same run's own annotations show GitHub's
+Actions cache service returning `400` on restore and failing to save on
+this and the Windows job ("Our services aren't available right now"),
+consistent with a concurrent GitHub-side infrastructure incident rather
+than a deterministic bug in this workflow. Left as-is pending a second real
+run; if it recurs on `v0.1.0-rc2` it gets its own numbered finding instead
+of being dismissed as flakiness a second time.
+
+---
+
 ## Clean results (verified, no action needed)
 
 - **SQL injection:** none. Every `execute()` is parameterized; no f-string or

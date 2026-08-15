@@ -84,6 +84,7 @@ jobs:
       # vars, but no real certificates have been exercised against it.
       - name: Build desktop installers (Tauri)
         working-directory: apps/desktop
+        shell: bash
         env:
           APPLE_CERTIFICATE: ${{ secrets.APPLE_CERTIFICATE }}
           APPLE_CERTIFICATE_PASSWORD: ${{ secrets.APPLE_CERTIFICATE_PASSWORD }}
@@ -93,7 +94,18 @@ jobs:
           APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
           WINDOWS_CERTIFICATE: ${{ secrets.WINDOWS_CERTIFICATE }}
           WINDOWS_CERTIFICATE_PASSWORD: ${{ secrets.WINDOWS_CERTIFICATE_PASSWORD }}
-        run: pnpm tauri build
+        # GitHub's secrets context yields "" (not unset) for a missing secret, so
+        # the env vars above are always *present*. Tauri's bundler treats presence
+        # alone as "sign this build" -- on macOS it ran `security import` on an
+        # empty certificate and failed the whole build (confirmed via a real
+        # release.yml run on 2026-08-14 with no signing secrets configured: exit
+        # code 1, "failed to import keychain certificate"). Unset rather than pass
+        # through empty so an absent secret degrades to an unsigned build, as
+        # intended and as the next step's warning message assumes.
+        run: |
+          [ -z "$APPLE_CERTIFICATE" ] && unset APPLE_CERTIFICATE APPLE_CERTIFICATE_PASSWORD APPLE_SIGNING_IDENTITY APPLE_ID APPLE_PASSWORD APPLE_TEAM_ID
+          [ -z "$WINDOWS_CERTIFICATE" ] && unset WINDOWS_CERTIFICATE WINDOWS_CERTIFICATE_PASSWORD
+          pnpm tauri build
 
       - name: Warn if this platform's signing secrets are absent
         shell: bash
