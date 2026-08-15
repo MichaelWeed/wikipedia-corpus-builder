@@ -45,7 +45,7 @@ Check a chunk only after ALL of its DoD commands pass. Format:
 - [x] P4.6 — 2026-08-13 — CLI subcommands corpussieve build run and validate run + resume completed
 
 ## P5 Normalization & exports
-- [x] P5.1 — 2026-08-13 — Normalizer interface + wikitext→markdown completed
+- [x] P5.1 — 2026-08-13 — Normalizer interface + wikitext→markdown completed. **Fixed 2026-08-15** (`qa/FINDINGS.md` #9): a template nested inside an infobox param (e.g. `{{Infobox video game|released={{Start date and age|...}}}}`, common in real articles) crashed `_convert()` via `mwparserfromhell.remove()` on an already-detached node; the broad exception handler silently replaced the whole article with a crude character-stripped dump instead. `filter_templates()`/`filter_tags()` now pass `RECURSE_OTHERS` so removing a parent can't orphan a still-queued child. Verified against the two real simplewiki articles that originally surfaced this.
 - [x] P5.2 — 2026-08-13 — Markdown exporter + path-traversal safe slugify completed
 - [x] P5.3 — 2026-08-13 — JSONL exporter + ATTRIBUTION.md and attribution.json generator completed
 - [x] P5.4 — 2026-08-13 — CLI corpussieve export markdown/jsonl + AnythingLLM ingestion guide completed

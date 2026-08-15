@@ -72,14 +72,29 @@ class WikitextMarkdownNormalizer:
         text = re.sub(r"__([A-Z_]+)__", "", text)
         wikicode = mwparserfromhell.parse(text)
 
-        # Handle tags (<ref>, <gallery>, etc.)
-        for tag in wikicode.filter_tags():
+        # Handle tags (<ref>, <gallery>, etc.). RECURSE_OTHERS yields only
+        # tags not nested inside another tag already in this pass, so
+        # removing an outer one (e.g. <ref><gallery>...) can't orphan an
+        # inner one still queued for removal -- mwparserfromhell's
+        # `remove()` raises ValueError on a node no longer in the tree,
+        # which a plain recursive filter_tags() can hand you.
+        for tag in wikicode.filter_tags(wikicode.RECURSE_OTHERS):
             tag_name = str(tag.tag).strip().lower()
             if tag_name in {"ref", "gallery", "style", "script"}:
                 wikicode.remove(tag)
 
-        # Handle templates & infoboxes
-        for tpl in wikicode.filter_templates():
+        # Handle templates & infoboxes. Same RECURSE_OTHERS reasoning as
+        # above -- real infoboxes routinely nest templates in param values
+        # (e.g. `{{Infobox video game|released={{Start date and age|...}}}}`),
+        # and a plain recursive filter_templates() yields both the infobox
+        # and that nested template as separate nodes. Removing/replacing the
+        # infobox first (it's found first, being outermost) detaches the
+        # nested template from the tree; reaching it next in the same loop
+        # and calling remove() on it then raises ValueError, which the
+        # caller's broad `except Exception` was silently swallowing --
+        # discarding the *entire* article to a crude character-stripped
+        # fallback instead of just this one infobox. See qa/FINDINGS.md #9.
+        for tpl in wikicode.filter_templates(wikicode.RECURSE_OTHERS):
             tpl_name = str(tpl.name).strip()
             if tpl_name.lower().startswith("infobox"):
                 # Convert Infobox to **Facts** bullet list if scalar plain text
@@ -102,8 +117,9 @@ class WikitextMarkdownNormalizer:
             else:
                 wikicode.remove(tpl)
 
-        # Handle tables (<table ...> or {| ... |})
-        for tag in wikicode.filter_tags():
+        # Handle tables (<table ...> or {| ... |}). RECURSE_OTHERS again --
+        # HTML tables can legitimately nest.
+        for tag in wikicode.filter_tags(wikicode.RECURSE_OTHERS):
             if str(tag.tag).strip().lower() == "table":
                 warnings.append("table_skipped")
                 wikicode.remove(tag)

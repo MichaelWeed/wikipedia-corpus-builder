@@ -60,6 +60,9 @@ ignore = []
 [tool.ruff.lint.per-file-ignores]
 "src/corpussieve/safety/*" = ["TID251"]
 "tests/*" = ["TID251"]
+# Embeds real Wikipedia article wikitext verbatim as regression fixtures
+# (FINDINGS.md #9) -- reflowing it would drift from the actual source text.
+"tests/normalization/test_wikitext_md.py" = ["E501"]
 
 [tool.mypy]
 python_version = "3.12"

@@ -12,6 +12,29 @@ CorpusSieve is an independent open-source project and is **not affiliated with, 
 
 ---
 
+## Installing the Desktop App
+
+Prebuilt installers for macOS, Windows, and Linux are attached to
+[GitHub Releases](../../releases) whenever a version is tagged (macOS
+`.dmg`, Windows `.exe`/`.msi`, Linux `.AppImage`/`.deb`).
+
+**These builds are unsigned.** No Apple or Windows code-signing certificate
+is provisioned for this project, so your OS will show a one-time warning
+the first time you run it:
+
+- **macOS**: Gatekeeper will say the app "cannot be opened because it is
+  from an unidentified developer." Right-click (or Control-click) the app
+  and choose **Open**, then confirm — you only need to do this once.
+- **Windows**: SmartScreen will say "Windows protected your PC." Click
+  **More info**, then **Run anyway**.
+
+This is expected, not a sign the build is broken or tampered with — see
+[`docs/RELEASING.md`](docs/RELEASING.md) for what code signing would
+require and why it isn't set up. If you'd rather not see the warning at
+all, build from source instead (see Developer Setup below).
+
+---
+
 ## Developer Setup
 
 ### Prerequisites

@@ -210,7 +210,7 @@ guarantee (design §9.3). `qa/fetch_dumps.sh` handles this correctly.
 
 ---
 
-## 9. MEDIUM (output quality) — Wikitext template artifacts leak into exported Markdown
+## 9. FIXED (2026-08-15) — Wikitext template artifacts leak into exported Markdown
 
 **Discovered:** running `export markdown` against the first successful
 real-data build (simplewiki "video games" domain, 3,372 articles) — **2,542 of
@@ -234,28 +234,70 @@ Infobox video game
 developer  ublArikaMatrix SoftwareSpike ChunsoftChunsoft
 ```
 
-Two distinct problems, both in `engine/src/corpussieve/normalization/wikitext_md.py`:
+**What this looked like** was two distinct wikitext-conversion bugs — a
+leaked template name (`Italic title`) and mangled infobox field
+concatenation (`ublArikaMatrixSoftwareSpike ChunsoftChunsoft`). **What it
+actually was, confirmed by reproducing both real articles' wikitext
+directly against `WikitextMarkdownNormalizer._convert()`** (fetched from
+`simple.wikipedia.org`, 2026-08-15): a single unhandled exception, not two
+formatting bugs.
 
-1. `{{Italic title}}` (and likely other simple formatting templates) is
-   emitted as literal body text (`Italic title`) instead of being applied or
-   dropped.
-2. `{{Infobox video game|developer=...|...}}` is not converted to the design
-   §15.1 `**Facts**` bullet list. Instead the template name and field values
-   are concatenated into unreadable run-on text
-   (`ublArikaMatrixSoftwareSpike ChunsoftChunsoft` — likely `publisher` +
-   `developer` values glued together without separators).
+**Root cause**: `_convert()` iterates `wikicode.filter_templates()`
+(recursive by default) and calls `wikicode.remove(tpl)` or
+`wikicode.replace(tpl, ...)` on each template found — including templates
+*nested inside another template's parameter value*, e.g.
+`{{Infobox video game|released={{Start date and age|2023|Jan|26}}}}`
+(genuinely common in real infoboxes for release dates, credited-role lists
+via `{{ubl|...}}`, etc. — both example articles hit this). Handling the
+outer infobox first (found first, being outermost) detaches the nested
+template from the tree as a side effect. Reaching that now-detached nested
+template next in the same loop and calling `wikicode.remove()` on it raises
+`ValueError` from mwparserfromhell's `_do_strong_search` (object no longer
+in the tree) — confirmed by direct reproduction, full traceback pinned to
+`wikitext_md.py:103`. `normalize()`'s broad `except Exception:` around the
+whole `_convert()` call silently caught this and substituted a crude
+character-stripped dump of the **entire article** (`re.sub(r"[\[\]{}|'#=]",
+"", raw_text)` then join non-empty lines) — which is exactly what produces
+both symptoms: `{{Italic title}}` becomes bare `Italic title` once its
+braces are stripped, and `{{Infobox video game|developer={{ubl|A|B|C}}...}}`
+becomes `infobox video gamedeveloperublABC...` once every `{`, `}`, `|`, `=`
+is stripped with nothing to replace them. Two visually different symptoms,
+one crash, two different articles' template mixes.
 
-**Impact:** the RAG-oriented Markdown export is unusable for most real
-Wikipedia articles, which almost all carry an infobox. This is separate from
-finding #1 — extraction and selection are correct; this is a normalization
-(P5) quality bug, not a category-layer or safety bug.
+**Fixed**: `wikicode.filter_templates()` (and the two `wikicode.filter_tags()`
+calls, defensively — HTML `<table>` can nest too) now pass
+`wikicode.RECURSE_OTHERS` instead of the default recursive iteration. This
+yields only templates/tags not themselves nested inside another one already
+in the same pass, so removing/replacing an outer node can no longer orphan
+one still queued in the loop; nested templates simply disappear along with
+their parent, which is already the desired outcome (the existing
+`is_scalar` check already refuses to build a Facts entry from a value
+containing `{`, so a nested template inside an infobox param was always
+going to make that whole infobox `infobox_skipped` — it just needs to not
+crash getting there).
 
-**Not fixed in this pass** — flagging for separate remediation. The design's
-existing golden-fixture tests (`tests/normalization/golden/`) evidently don't
-cover a real infobox with multiple fields, since this class of failure wasn't
-caught by the test suite either. A fix should add real-world infobox/template
-fixtures (e.g. from this exact `Pizza_Tower` or `Nightmare_of_Druaga` case) to
-`tests/normalization/golden/`, not just synthetic minimal ones.
+**Verified**: both real articles' wikitext (embedded verbatim as regression
+fixtures in `tests/normalization/test_wikitext_md.py`, fetched 2026-08-15)
+now normalize cleanly — `infobox_skipped` warning (correct: both infoboxes
+have nested-template params), no leaked template names, no stray `{`/`}`,
+correct heading/bold/italic conversion, body prose intact. Also added a
+synthetic scalar-infobox test asserting the **Facts** bullet-list path
+itself (never exercised by the two real examples, since both happen to hit
+`infobox_skipped`) — neither real article's infobox has an all-plain-text
+`|key=value` set, so this needed its own dedicated case. The prior
+`test_normalize_infobox_and_malformed` test asserted
+`has_facts or has_skipped or len(doc.markdown) > 0` — true almost
+regardless of output — replaced with exact-content assertions. Full engine
+suite: 140/140 passing; `ruff check`, `ruff format --check`, `mypy --strict`
+all clean.
+
+**Not re-verified against a full real-data rebuild** (the 3,372-article
+simplewiki build that originally surfaced this) — that would require
+re-downloading and re-running the full pipeline, which wasn't repeated this
+pass. The two example articles from the original 75%-failure run are now
+confirmed fixed directly; the fix (stop recursing into templates already
+covered by an ancestor) is general, not per-article, so it should account
+for the class of failure, but the exact prior 75% figure is not re-measured.
 
 ---
 
