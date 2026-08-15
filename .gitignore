@@ -71,3 +71,6 @@ apps/desktop/src-tauri/binaries/
 
 # Downloaded Wikimedia dumps (large, never committed)
 dumps/
+
+# Session anchors (working state, not repo history)
+anchor/
