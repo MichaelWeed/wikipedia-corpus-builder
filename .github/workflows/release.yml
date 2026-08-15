@@ -25,19 +25,27 @@ jobs:
         with:
           version: 9
 
-      # No `cache: 'pnpm'` here on purpose -- see qa/FINDINGS.md #17. All
-      # three real runs of this workflow (v0.1.0-rc1/rc2/rc3) hit a GitHub
-      # Actions cache-service outage (their own annotations: "Cache service
-      # responded with 400" / "Our services aren't available right now"),
-      # which left the restored pnpm store missing index files for
-      # unrelated packages each time and broke `pnpm licenses list`
-      # downstream. This workflow only runs on version tags, so the minor
-      # extra install time from always fetching fresh is worth not
-      # inheriting a possibly-corrupted cache.
+      # node-version 22 (not 20) -- see qa/FINDINGS.md #18. rollup's optional
+      # dependency @napi-rs/lzma-linux-x64-gnu@1.5.1 requires Node
+      # `^22.20 || ^24.12 || >=25`; under Node 20, pnpm correctly (and
+      # silently) skips installing it as engines-incompatible, but
+      # `pnpm licenses list` doesn't account for that and errors with
+      # ERR_PNPM_MISSING_PACKAGE_INDEX_FILE instead -- confirmed as a real
+      # pnpm bug on both 9.15.9 and 10.34.5, not fixed by a newer pnpm.
+      #
+      # No `cache: 'pnpm'` here either. All four real runs of this workflow
+      # (v0.1.0-rc1 through rc4) showed a concurrent GitHub Actions
+      # cache-service outage (their own annotations: "Cache service
+      # responded with 400" / "Our services aren't available right now").
+      # That turned out NOT to be the cause of the failure above -- rc4
+      # reproduced the identical error with the cache already removed,
+      # which is what led to finding the real engines-mismatch cause -- but
+      # this workflow only runs on version tags, so skipping a flaky cache
+      # is still a reasonable trade for the minor extra install time.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
-          node-version: 20
+          node-version: 22
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable

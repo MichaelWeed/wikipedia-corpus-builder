@@ -547,45 +547,64 @@ in the CI log instead of silent — which is what surfaced #17 below.
 
 ---
 
-## 17. MEDIUM (release pipeline, Linux-specific) — pnpm store cache corruption from a concurrent GitHub Actions cache-service outage
+## 17. REFUTED — pnpm store cache corruption was NOT the cause of the ubuntu SBOM failure
 
-**Discovered**: with #16's error now surfaced instead of silently buried,
-`v0.1.0-rc3`'s `ubuntu-latest` job still failed the same step, but this
-time with real error text: `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` for
-`@napi-rs/lzma-linux-x64-gnu@1.5.1` (an optional native dependency of
-`rollup`, unrelated to the packages named in #16's `v0.1.0-rc1`/`rc2`
-failures, both of which named `@tauri-apps/cli@2.11.4` instead). The job
-failed in 1m26s total — before the Linux system deps install, engine
-build, sidecar build, or any Rust compilation had a chance to fill the
-disk — ruling out #16's disk-exhaustion mechanism as the cause of *this*
-occurrence, even though the symptom (same pnpm error class, same silent
-stdout-only message) looked identical.
+**Original hypothesis** (recorded here for an honest trail, not because it
+was right): with #16's error now surfaced instead of silently buried,
+`v0.1.0-rc3`'s `ubuntu-latest` job still failed the same step, with
+`ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` for `@napi-rs/lzma-linux-x64-gnu@1.5.1`
+— a different package than #16's `@tauri-apps/cli@2.11.4`, and too fast
+(1m26s total) for #16's disk-exhaustion mechanism to apply. All real runs
+of this workflow so far showed GitHub's own annotations reporting
+Actions-cache-service errors ("Cache service responded with 400" / "Our
+services aren't available right now") on this exact job, which looked like
+a plausible, well-correlated external cause, so `cache: 'pnpm'` was dropped
+from `Setup Node.js` and `v0.1.0-rc4` was pushed to test it.
 
-**Root cause**: a genuinely different, unrelated failure mode that happens
-to produce the same pnpm error class. `actions/setup-node@v4`'s `cache:
-'pnpm'` + `cache-dependency-path` restores a saved pnpm store from GitHub's
-Actions cache service before `pnpm install` runs. All three real runs of
-this workflow so far (`v0.1.0-rc1`, `rc2`, `rc3`) show GitHub's own
-annotations reporting cache-service errors on this exact job -- "Cache
-service responded with 400" and "Our services aren't available right now"
--- consistent with a genuine, concurrent GitHub-side incident (not
-something under this repo's control). A partially-restored or corrupted
-pnpm store leaves `pnpm install` reporting success while some packages'
-content-addressable-store index files are missing -- a different,
-essentially arbitrary package each time, matching what was observed. This
-workflow's sibling `desktop.yml` also uses `cache: 'pnpm'` and has stayed
-green throughout this project (per `docs/ACCEPTANCE_V0_1.md`), because
-nothing in its steps does the kind of whole-store integrity read that
-`pnpm licenses list` does -- the corruption was likely already there,
-just never exercised.
+**Refuted by that very test**: `v0.1.0-rc4` failed with the *exact same*
+error, same package, same everything — with the pnpm cache already
+removed. Correlation with the cache-service annotation was real but not
+causal; the annotation appears on essentially every job in this repo right
+now regardless of outcome (a live, unrelated GitHub-side incident), and
+chasing it without confirming causation was a mistake worth naming
+explicitly. The real cause is #18. The cache removal itself is harmless
+and was left in place (a rarely-run workflow doesn't need the cache), but
+it did not fix anything.
 
-**Fixed**: dropped `cache: 'pnpm'` / `cache-dependency-path` from
-`release.yml`'s `Setup Node.js` step entirely, so this workflow always
-does a full fresh `pnpm install` against the registry instead of ever
-depending on a potentially-corrupted restored cache. `release.yml` only
-runs on version tags (rare), so the extra install time is a reasonable
-trade for not inheriting an externally-caused corruption again. Not yet
-re-verified against a real CI run -- that's `v0.1.0-rc4`.
+---
+
+## 18. MEDIUM (release pipeline, Linux-specific) — `pnpm licenses list` fails on optional deps skipped for Node engines mismatch, and `release.yml` pinned an old Node
+
+**Discovered**: after #17 was refuted, reproduced the exact
+`v0.1.0-rc3`/`rc4` failure locally and deterministically: `docker run
+--platform linux/amd64 node:20-bookworm`, a plain `pnpm install
+--frozen-lockfile` against `apps/desktop`'s real lockfile (no CI, no GitHub
+cache involved at all), then `pnpm licenses list --json` — same error,
+same package, every time. Confirmed on both pnpm 9.15.9 (what `release.yml`
+pins) and pnpm 10.34.5 (current), so it isn't a version-specific pnpm
+regression either.
+
+**Root cause**: `rollup@4.62.4` (a `vite`/`@vitejs/plugin-react` transitive
+dependency) optionally depends on `@napi-rs/lzma-linux-x64-gnu@1.5.1`,
+whose own `package.json` declares `engines: { node: '^22.20 || ^24.12 ||
+>=25' }`. Under Node 20 (what `release.yml`'s `Setup Node.js` step pinned),
+pnpm correctly and *silently* skips installing this optional dependency as
+engines-incompatible — normal, expected behavior, no warning printed.
+`pnpm licenses list`, however, doesn't account for optional dependencies
+legitimately skipped this way: it still expects a content-addressable-store
+index file for every package the lockfile mentions, doesn't find one for
+this one, and throws `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` instead of
+recognizing the skip as valid. Confirmed the fix by re-running the same
+local repro with `node:22-bookworm`: the optional dependency installs
+normally and `pnpm licenses list --json` exits 0.
+
+**Fixed**: bumped `release.yml`'s `Setup Node.js` `node-version` from `20`
+to `22`. `desktop.yml` (the regular CI workflow) stays on Node 20
+unchanged, since it never runs `pnpm licenses list` and isn't affected.
+Verified locally (Docker, linux/amd64, Node 22, pnpm 9.15.9: clean install
++ `pnpm licenses list --json` exits 0, report includes the previously-
+missing package). Not yet re-verified against a real CI run -- that's
+`v0.1.0-rc5`.
 
 ---
 
