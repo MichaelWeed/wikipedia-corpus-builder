@@ -35,7 +35,7 @@ jobs:
       - name: Schema Backwards Compatibility Check
         run: |
           mkdir -p /tmp/old_schemas
-          git show origin/main:schemas/ > /dev/null 2>&1 || true
-          git archive origin/main schemas/ | tar -x -C /tmp/old_schemas/ || true
+          git show origin/master:schemas/ > /dev/null 2>&1 || true
+          git archive origin/master schemas/ | tar -x -C /tmp/old_schemas/ || true
           cd engine
           uv run python scripts/schema_compat.py /tmp/old_schemas/schemas ../schemas
