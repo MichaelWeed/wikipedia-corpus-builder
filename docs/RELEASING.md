@@ -49,15 +49,18 @@ Python, Node, or Rust installed.
    automatically) with all platform artifacts attached and auto-generated
    release notes. Review and publish it manually.
 
-**Verification status of this pipeline (2026-08-14):** the sidecar build,
-`tauri build` (full, non-debug), and all three SBOM commands were run and
-verified locally on macOS (aarch64) — not through this workflow. The
-workflow YAML itself, the Linux system-dependency list, and the Windows
-runner path have **not** been exercised through an actual GitHub Actions
-run (that requires pushing a tag or opening a PR against `main`, which this
-session did not do — see `docs/ACCEPTANCE_V0_1.md` criterion 19). Treat the
-first real tag push as the actual first test of this pipeline, not this
-document.
+**Verification status of this pipeline (2026-08-15):** genuinely green on
+all 3 OSes, confirmed by five real tag pushes (`v0.1.0-rc1` through `rc5`)
+watched on real GitHub Actions — not inferred from local testing. `rc5`
+produced a real draft GitHub release with real installer artifacts (macOS
+`.dmg`, Linux `.AppImage`/`.deb`, Windows `.exe`/`.msi`), engine
+wheel/sdist, all three SBOM/license files, and checksums. The first four
+attempts each surfaced a real, previously-untested bug — full root-cause
+analysis in `qa/FINDINGS.md` #15, #16, #18 (and #17, a wrong hypothesis
+about GitHub Actions cache corruption, refuted and kept for an honest
+trail). Signing remains genuinely unverified — see below — since no real
+certificates have been provisioned; every build so far is
+unsigned/ad-hoc-signed, exactly as this pipeline is designed to degrade.
 
 ## Code Signing Secrets
 
