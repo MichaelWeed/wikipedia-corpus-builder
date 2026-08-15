@@ -539,8 +539,53 @@ ever needed the installed Node dependency tree, not any build artifact, so
 there was never a real reason for it to run last. Also changed the command
 to `... || { cat apps/desktop/node-dependencies.json; exit 1; }` so a
 future failure of this kind prints its own (stdout-only) error into the CI
-log instead of silently disappearing into an unread file. Not yet
-re-verified against a real CI run.
+log instead of silently disappearing into an unread file. **Verified the
+reorder and error-surfacing both work as intended** on `v0.1.0-rc3`: the
+job now fails in 1m26s (right after "Install desktop dependencies", before
+any heavy build) instead of ~10-16 minutes in, and the error is now visible
+in the CI log instead of silent — which is what surfaced #17 below.
+
+---
+
+## 17. MEDIUM (release pipeline, Linux-specific) — pnpm store cache corruption from a concurrent GitHub Actions cache-service outage
+
+**Discovered**: with #16's error now surfaced instead of silently buried,
+`v0.1.0-rc3`'s `ubuntu-latest` job still failed the same step, but this
+time with real error text: `ERR_PNPM_MISSING_PACKAGE_INDEX_FILE` for
+`@napi-rs/lzma-linux-x64-gnu@1.5.1` (an optional native dependency of
+`rollup`, unrelated to the packages named in #16's `v0.1.0-rc1`/`rc2`
+failures, both of which named `@tauri-apps/cli@2.11.4` instead). The job
+failed in 1m26s total — before the Linux system deps install, engine
+build, sidecar build, or any Rust compilation had a chance to fill the
+disk — ruling out #16's disk-exhaustion mechanism as the cause of *this*
+occurrence, even though the symptom (same pnpm error class, same silent
+stdout-only message) looked identical.
+
+**Root cause**: a genuinely different, unrelated failure mode that happens
+to produce the same pnpm error class. `actions/setup-node@v4`'s `cache:
+'pnpm'` + `cache-dependency-path` restores a saved pnpm store from GitHub's
+Actions cache service before `pnpm install` runs. All three real runs of
+this workflow so far (`v0.1.0-rc1`, `rc2`, `rc3`) show GitHub's own
+annotations reporting cache-service errors on this exact job -- "Cache
+service responded with 400" and "Our services aren't available right now"
+-- consistent with a genuine, concurrent GitHub-side incident (not
+something under this repo's control). A partially-restored or corrupted
+pnpm store leaves `pnpm install` reporting success while some packages'
+content-addressable-store index files are missing -- a different,
+essentially arbitrary package each time, matching what was observed. This
+workflow's sibling `desktop.yml` also uses `cache: 'pnpm'` and has stayed
+green throughout this project (per `docs/ACCEPTANCE_V0_1.md`), because
+nothing in its steps does the kind of whole-store integrity read that
+`pnpm licenses list` does -- the corruption was likely already there,
+just never exercised.
+
+**Fixed**: dropped `cache: 'pnpm'` / `cache-dependency-path` from
+`release.yml`'s `Setup Node.js` step entirely, so this workflow always
+does a full fresh `pnpm install` against the registry instead of ever
+depending on a potentially-corrupted restored cache. `release.yml` only
+runs on version tags (rare), so the extra install time is a reasonable
+trade for not inheriting an externally-caused corruption again. Not yet
+re-verified against a real CI run -- that's `v0.1.0-rc4`.
 
 ---
 

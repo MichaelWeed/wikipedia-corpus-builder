@@ -25,12 +25,19 @@ jobs:
         with:
           version: 9
 
+      # No `cache: 'pnpm'` here on purpose -- see qa/FINDINGS.md #17. All
+      # three real runs of this workflow (v0.1.0-rc1/rc2/rc3) hit a GitHub
+      # Actions cache-service outage (their own annotations: "Cache service
+      # responded with 400" / "Our services aren't available right now"),
+      # which left the restored pnpm store missing index files for
+      # unrelated packages each time and broke `pnpm licenses list`
+      # downstream. This workflow only runs on version tags, so the minor
+      # extra install time from always fetching fresh is worth not
+      # inheriting a possibly-corrupted cache.
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
           node-version: 20
-          cache: 'pnpm'
-          cache-dependency-path: 'apps/desktop/pnpm-lock.yaml'
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
