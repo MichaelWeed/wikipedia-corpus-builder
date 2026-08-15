@@ -291,13 +291,86 @@ regardless of output — replaced with exact-content assertions. Full engine
 suite: 140/140 passing; `ruff check`, `ruff format --check`, `mypy --strict`
 all clean.
 
-**Not re-verified against a full real-data rebuild** (the 3,372-article
-simplewiki build that originally surfaced this) — that would require
-re-downloading and re-running the full pipeline, which wasn't repeated this
-pass. The two example articles from the original 75%-failure run are now
-confirmed fixed directly; the fix (stop recursing into templates already
-covered by an ancestor) is general, not per-article, so it should account
-for the class of failure, but the exact prior 75% figure is not re-measured.
+**Re-verified against a full real-data rebuild**, this time for real: ran
+the entire CLI pipeline end-to-end against the actual 3,372-article
+simplewiki "video games" build that originally surfaced this finding
+(`metadata build` → `domain compile` → `domain preview` → `build run` →
+`validate run` → `export markdown`, matching `qa/UAT_v0.1.md` §1) and
+grepped every one of the 3,372 exported files for leaked template/tag
+syntax. The first re-run surfaced **three more distinct real bugs** the
+two hand-picked example articles never happened to trigger — same root
+cause class (an AST node silently failing to form, or a parent removal
+orphaning a child mid-loop), different trigger each time:
+
+- **`Rock Paper Shotgun`**: an infobox param left as a bare `''`
+  (`|caption=''`), combined with *any* bold/italic run later in the
+  article (however far away), made mwparserfromhell misjudge apostrophe-run
+  boundaries and fail to recognize `{{Infobox website ...}}` as a template
+  at all — no crash, just silently no Template node, so the entire infobox
+  (nested templates and wikilinks included) passed through completely raw.
+  Fixed by parsing with `skip_style_tags=True` — this normalizer converts
+  bold/italic via its own regex pass over the final string, never via
+  mwparserfromhell's own Bold/Italic nodes, so disabling that parsing path
+  has no other effect here.
+- **`History of video game consoles (fourth generation)`**: a `<gallery>`
+  wrapped in a `<div>`, combined with unrelated bold/italic markup later in
+  the article, made the whole `<gallery>...</gallery>` block (including a
+  nested `<ref>` and template) fail to parse as a Tag node, same failure
+  shape as the infobox case. `RECURSE_OTHERS` can't help when there's no
+  node to find in the first place, so this needed a defensive regex
+  fallback for `ref`/`gallery`/`style`/`script` — the same pattern this
+  file already used for `{| ... |}` tables that slip past AST removal.
+- **`The Legend of Zelda: Tears of the Kingdom`**: `[[File:...|thumb|
+  caption with [[Nintendo Switch]] inside]]` — an image caption containing
+  a nested wikilink, everyday real-article syntax. `filter_wikilinks()`
+  lacked the same `RECURSE_OTHERS` fix already applied to templates and
+  tags; removing the outer `File:` link orphaned the nested one, raising
+  the same `ValueError` class on the next `wikicode.replace()`. Fixed the
+  same way; applied defensively to `filter_external_links()` too (no
+  confirmed crash there, but the same shape of risk).
+- **`Fire Emblem: Shadow Dragon and the Blade of Light`**: a bare
+  `<references />` (the self-closing tag that renders a citation list,
+  distinct from `<ref>` itself) sitting with no enclosing "References"
+  heading — the line-based section-drop that normally removes it never
+  triggered, and `references` was never in the tag-removal set. Added it.
+
+After all four fixes, **re-ran the export a third time and confirmed 0 of
+3,372 real files show leaked template syntax (`{{`/`}}`) or leaked
+tags (`<ref`/`<gallery`/`<references`)** — genuine closure on the class of
+bug this finding is about, not just the two originally-reported examples.
+All five real articles (the original two plus these three) are now
+regression fixtures in `tests/normalization/test_wikitext_md.py`. Full
+engine suite: 144/144 passing; `ruff check`, `ruff format --check`,
+`mypy --strict` all clean.
+
+**Explicitly out of scope, not a regression, not fixed here**: 70 of the
+3,372 files still contain generic HTML formatting tags (`<small>`, `<br>`,
+`<sup>`, `<code>`, `<div>`, `<span>`, `<nowiki>`, `<blockquote>`, `<big>`,
+`<u>`) rendered as literal HTML in the Markdown output. This was true
+before this session's fixes too — the design (`plan/P5_exports.md` P5.1)
+only specifies removing `ref`/`gallery`/`style`/`script` tags, HTML
+comments, and magic words; it never asked for stripping HTML tags in
+general. Cosmetic only (doesn't corrupt or garble content the way the bugs
+above did), logged as its own finding below rather than silently expanding
+this one's scope.
+
+---
+
+## 19. LOW (output quality, pre-existing, not fixed) — generic HTML formatting tags leak into exported Markdown
+
+**Discovered** while re-verifying finding #9 against a full 3,372-article
+real-data export: 70 files (~2%) contain literal `<small>`, `<br>`,
+`<sup>`, `<code>`, `<div>`, `<span>`, `<nowiki>`, `<blockquote>`, `<big>`,
+or `<u>` tags in the exported Markdown. Not a regression — the normalizer
+never removed generic HTML tags; `plan/P5_exports.md`'s P5.1 spec only
+calls out `ref`/`gallery`/`style`/`script` for removal. Cosmetic, not
+corrupting: unlike finding #9, nothing crashes and no content gets
+mangled, the tags just render as literal HTML in what's meant to be plain
+Markdown. Left unfixed and flagged rather than silently expanding #9's
+scope; a real fix would need a design decision per tag (`<br>` → newline?
+`<small>`/`<sup>`/`<code>` → keep inner content, drop the tag? `<nowiki>`
+→ keep content literally, which is arguably already correct since that's
+its actual purpose?), not a blanket strip.
 
 ---
 

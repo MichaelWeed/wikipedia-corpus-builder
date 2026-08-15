@@ -61,8 +61,22 @@ class WikitextMarkdownNormalizer:
 
         text_stripped = "\n".join(filtered_lines)
 
-        # 2. Parse AST with mwparserfromhell
-        wikicode = mwparserfromhell.parse(text_stripped)
+        # 2. Parse AST with mwparserfromhell. skip_style_tags=True: an
+        # unclosed ''/''' run inside a template param (e.g. an infobox
+        # |caption= left blank apart from a stray ''), combined with *any*
+        # later bold/italic run anywhere else in the article, can make
+        # mwparserfromhell's apostrophe-run resolution misjudge the
+        # boundary between them and fail to recognize the template at all
+        # -- not a crash, just silently no Template node, so the whole
+        # `{{...}}` block (and any wikilinks/quotes inside it) passes
+        # through completely raw. Reproduced directly against a real
+        # article (`Rock Paper Shotgun`) that hit exactly this on a full
+        # simplewiki export -- see qa/FINDINGS.md #9. skip_style_tags
+        # disables mwparserfromhell's own bold/italic node parsing, which
+        # this normalizer doesn't use anyway: bold/italic is converted by
+        # a separate regex pass below, over the rendered string, not by
+        # inspecting Bold/Italic AST nodes.
+        wikicode = mwparserfromhell.parse(text_stripped, skip_style_tags=True)
 
         # Strip HTML comments & magic words
         for comment in wikicode.filter_comments():
@@ -70,7 +84,7 @@ class WikitextMarkdownNormalizer:
 
         text = str(wikicode)
         text = re.sub(r"__([A-Z_]+)__", "", text)
-        wikicode = mwparserfromhell.parse(text)
+        wikicode = mwparserfromhell.parse(text, skip_style_tags=True)
 
         # Handle tags (<ref>, <gallery>, etc.). RECURSE_OTHERS yields only
         # tags not nested inside another tag already in this pass, so
@@ -78,10 +92,39 @@ class WikitextMarkdownNormalizer:
         # inner one still queued for removal -- mwparserfromhell's
         # `remove()` raises ValueError on a node no longer in the tree,
         # which a plain recursive filter_tags() can hand you.
+        # `<references />` (self-closing -- renders the citation list a
+        # <ref> tag elsewhere feeds into) is a distinct tag from <ref>
+        # itself. Usually sits under a "References" heading the line-based
+        # section drop above already removes, but at least one real article
+        # ("Fire Emblem: Shadow Dragon and the Blade of Light") has it
+        # floating with no such heading, which left it in the output with
+        # nothing to render. See qa/FINDINGS.md #9.
         for tag in wikicode.filter_tags(wikicode.RECURSE_OTHERS):
             tag_name = str(tag.tag).strip().lower()
-            if tag_name in {"ref", "gallery", "style", "script"}:
+            if tag_name in {"ref", "references", "gallery", "style", "script"}:
                 wikicode.remove(tag)
+
+        # Defensive regex fallback for the same tags, same reasoning as the
+        # `{| ... |}` table fallback below: mwparserfromhell can, in real
+        # articles, fail to recognize a structurally well-formed tag as a
+        # Tag node at all -- not a crash, just silent -- e.g. a <gallery>
+        # wrapped in a <div>, combined with unrelated markup appearing
+        # *later* in the same article, was enough to make the whole
+        # <gallery>...</gallery> block (including a <ref> and template
+        # nested inside it) pass through as literal text, invisible to the
+        # AST-based removal just above. Reproduced against a real article
+        # ("History of video game consoles (fourth generation)") on a full
+        # simplewiki export. See qa/FINDINGS.md #9.
+        text_pre_fallback = str(wikicode)
+        text_post_fallback = re.sub(
+            r"<(ref|gallery|style|script)\b[^>]*>.*?</\1\s*>",
+            "",
+            text_pre_fallback,
+            flags=re.DOTALL | re.IGNORECASE,
+        )
+        if text_post_fallback != text_pre_fallback:
+            warnings.append("raw_tag_fallback_stripped")
+            wikicode = mwparserfromhell.parse(text_post_fallback, skip_style_tags=True)
 
         # Handle templates & infoboxes. Same RECURSE_OTHERS reasoning as
         # above -- real infoboxes routinely nest templates in param values
@@ -131,8 +174,14 @@ class WikitextMarkdownNormalizer:
             for t_str in text_tables:
                 wikicode.replace(t_str, "")
 
-        # Handle Wikilinks
-        for link in wikicode.filter_wikilinks():
+        # Handle Wikilinks. RECURSE_OTHERS, same reasoning as templates/tags
+        # above -- a [[File:...|thumb|caption with [[nested]] links]] is
+        # everyday real-article syntax (image captions routinely contain
+        # wikilinks), and removing the outer File: link first orphans the
+        # nested one, which then raises the same ValueError on replace().
+        # Reproduced against a real article ("The Legend of Zelda: Tears of
+        # the Kingdom") on a full simplewiki export. See qa/FINDINGS.md #9.
+        for link in wikicode.filter_wikilinks(wikicode.RECURSE_OTHERS):
             target = str(link.title).strip()
             if target.lower().startswith(("category:", "file:", "image:", ":category:", ":file:")):
                 wikicode.remove(link)
@@ -140,8 +189,10 @@ class WikitextMarkdownNormalizer:
                 label = str(link.text).strip() if link.text else target
                 wikicode.replace(link, label)
 
-        # Handle External Links
-        for ext_link in wikicode.filter_external_links():
+        # Handle External Links. RECURSE_OTHERS defensively, matching the
+        # rest of this function -- no confirmed real-article crash here,
+        # but external link text can itself contain further markup.
+        for ext_link in wikicode.filter_external_links(wikicode.RECURSE_OTHERS):
             label = str(ext_link.title).strip() if ext_link.title else str(ext_link.url).strip()
             wikicode.replace(ext_link, label)
 
